@@ -365,7 +365,7 @@
         for (const p of this.players) {
           if (p === dono || p.dead || G.dist(x, y, p.cx, p.cy) > 72) continue;
           const a = Math.atan2(p.cy - y, p.cx - x);
-          G.ferirBruto(this, p, G.PVP_NOVA, Math.cos(a), Math.sin(a), dono);
+          G.ferirBruto(this, p, G.PVP_F, Math.cos(a), Math.sin(a), dono);
         }
       }
       if (bossHit) this.say('O CHEFE RESISTE!', 100);
@@ -1247,7 +1247,14 @@
         if (pronto) { if ((this.tick >> 4) & 1) this.text(c, 'OK', x + 34, 30, cor); }
         else this.text(c, (max - falta) + '/' + max, x + 34, 30, '#5c667e');
       };
-      slot('X', 160, p.spCd, p.spMax, '#7fd858', '#4a7a3a');
+      if (p.cls === 'guerreiro') {             // investida: so 1 s de espera, sem abates
+        const pronto = p.xCd === 0;
+        this.text(c, 'X', 160, 30, pronto ? '#7fd858' : '#5c667e');
+        c.fillStyle = '#2a2a3a'; c.fillRect(168, 26, 22, 4);
+        c.fillStyle = pronto ? '#7fd858' : '#4a7a3a';
+        c.fillRect(168, 26, Math.round(22 * (1 - p.xCd / 60)), 4);
+        if (pronto && (this.tick >> 4) & 1) this.text(c, 'OK', 194, 30, '#7fd858');
+      } else slot('X', 160, p.spCd, p.spMax, '#7fd858', '#4a7a3a');
       slot('C', 222, p.spinCd, p.spinMax, '#b45cff', '#5a3a7a');
       slot('V', 284, p.goldCd, p.goldMax, '#ffd34d', '#8a6a1f');
 
@@ -1257,6 +1264,7 @@
         this.text(c, 'DEPOIS ' + r.prox.nome, 160, 22, '#5c667e');
         if (p.escudo > 0) this.text(c, 'ESCUDO ' + Math.ceil(p.escudo / 60) + 's', 222, 12, '#7ff2ff');
       }
+      if (p.turbo > 0) this.text(c, 'VELOCIDADE ' + Math.ceil(p.turbo / 60) + 's', 222, 12, '#c8cede');
 
       // embaixo a esquerda: sala e nome do lugar (nao cobre mais as barras)
       if (this.room && this.level) {
@@ -1336,7 +1344,7 @@
       this.text(c, 'ESCOLHA SEU HEROI', VIEW_W / 2, 20, '#ffd34d', 'center', 12);
 
       const S = this.SPR;
-      const pw = 76, ph = 92, gap = 4;
+      const pw = 60, ph = 96, gap = 3;
       const total = G.CLASS_IDS.length * pw + (G.CLASS_IDS.length - 1) * gap;
       const ox = (VIEW_W - total) / 2, oy = 32;
 
@@ -1366,7 +1374,8 @@
           const meio = def.hp - h * 2 === 1;
           c.drawImage(S.heartHud[meio ? 1 : 2], (x + pw / 2 - hearts * 4.5 + h * 9) | 0, oy + 68);
         }
-        this.text(c, 'DANO ' + def.dmg + '  VEL ' + def.speed.toFixed(1), x + pw / 2, oy + 86, '#8f96a8', 'center');
+        this.text(c, 'DANO ' + def.dmg, x + pw / 2, oy + 84, '#8f96a8', 'center');
+        this.text(c, 'VEL ' + def.speed.toFixed(1), x + pw / 2, oy + 93, '#8f96a8', 'center');
       });
 
       const def = G.CLASSES[G.CLASS_IDS[this.selIdx]];
@@ -1378,7 +1387,14 @@
       if (G.CLASS_IDS[this.selIdx] === 'mago') {
         this.text(c, '7 FOGO > 4 GELO > 2 RAIO   X = RAIOS   C = ESCUDO   V = INFERNO', VIEW_W / 2, 178, '#7ff2ff', 'center');
       }
-      this.text(c, 'X, C E V LIBERAM COM 3, 6 E 10 ABATES (SO O F TEM RECARGA)', VIEW_W / 2, 188, '#8f96a8', 'center');
+      if (G.CLASS_IDS[this.selIdx] === 'guerreiro') {
+        this.text(c, 'X INVESTIDA 1s   C TORNADO 7s   V RELAMPAGO', VIEW_W / 2, 178, '#c8cede', 'center');
+      }
+      if (G.CLASS_IDS[this.selIdx] === 'ninja') {
+        this.text(c, 'X 5 ESTRELAS   C VELOCIDADE 10s   V VENENO', VIEW_W / 2, 178, '#7fd858', 'center');
+      }
+      this.text(c, G.CLASS_IDS[this.selIdx] === 'guerreiro' ? 'C E V LIBERAM COM 6 E 10 ABATES (O F TEM RECARGA)'
+        : 'X, C E V LIBERAM COM 3, 6 E 10 ABATES (SO O F TEM RECARGA)', VIEW_W / 2, 188, '#8f96a8', 'center');
       this.text(c, 'SETAS ESCOLHEM   ENTER CONFIRMA   ESC VOLTA', VIEW_W / 2, 200, '#5c667e', 'center');
     }
 
@@ -1439,10 +1455,12 @@
       const un = this.modo() === 'vs' ? ' DE DANO' : ' ABATES';
       const falta = (n) => (n === 0 ? 'PRONTO' : 'FALTAM ' + n + un);
       const nomes = { bow: ['SALVA DE 3 FLECHAS (X, SEGURE)', '4 GIROS (C)', 'DOURADA (V)'],
-        melee: ['INVESTIDA (X, SEGURE)', 'GIRO TRIPLO (C)', 'RELAMPAGO (V)'],
-        magic: ['TEMPESTADE DE RAIOS (X)', 'ESCUDO (C)', 'INFERNO (V)'] }[p.def.modo];
+        melee: ['INVESTIDA (X, SEGURE)', 'TORNADO (C)', 'RELAMPAGO (V)'],
+        magic: ['TEMPESTADE DE RAIOS (X)', 'ESCUDO (C)', 'INFERNO (V)'],
+        ninja: ['ESTRELAS NINJA (X)', 'VELOCIDADE (C)', 'VENENO (V)'] }[p.def.modo];
       if (nomes) {
-        this.text(c, nomes[0] + ': ' + falta(p.spCd), VIEW_W / 2, oy + mh + 52, '#7fd858', 'center');
+        const xTxt = p.cls === 'guerreiro' ? (p.xCd === 0 ? 'PRONTO' : 'ESPERA 1s') : falta(p.spCd);
+        this.text(c, nomes[0] + ': ' + xTxt, VIEW_W / 2, oy + mh + 52, '#7fd858', 'center');
         this.text(c, nomes[1] + ': ' + falta(p.spinCd), VIEW_W / 2 - 6, oy + mh + 64, '#b45cff', 'right');
         this.text(c, nomes[2] + ': ' + falta(p.goldCd), VIEW_W / 2 + 6, oy + mh + 64, '#ffd34d', 'left');
       }

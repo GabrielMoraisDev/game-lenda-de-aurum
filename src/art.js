@@ -547,6 +547,7 @@
       P(4, 2, 2, 4, p.hair);
       if (o.cap) { P(4, 0, 9, 2, o.cap); P(3, 1, 2, 2, o.cap); P(12, 1, 2, 1, o.cap); }
       if (o.hat) { P(2, 2, 12, 1, o.hat); P(4, 1, 8, 1, o.hat); P(5, 0, 5, 1, o.hat); }
+      if (o.mask) { P(6, 6, 7, 1, o.mask); P(4, 2, 8, 1, p.trim); P(2, 2, 2, 1, p.trim); P(1, 3, 2, 1, p.trim); }
       P(9, 4, 1, 2, DARK);
       P(12, 4, 1, 2, p.skin);
       if (o.ears) { P(2, 3, 3, 1, p.skin); P(3, 4, 2, 1, p.skin); }
@@ -579,6 +580,8 @@
       }
       if (o.cap) { P(3, 0, 10, 2, o.cap); P(2, 1, 11, 1, o.cap); }
       if (o.hat) { P(1, 2, 13, 1, o.hat); P(3, 1, 9, 1, o.hat); P(4, 0, 6, 1, o.hat); }
+      if (o.mask && !back) P(5, 6, 8, 1, o.mask);
+      if (o.mask) { P(4, 2, 8, 1, p.trim); P(2, 2, 2, 1, p.trim); }
       if (o.ears) { P(1, 3, 3, 1, p.skin); P(12, 3, 3, 1, p.skin); }
       if (o.coil) { P(4, 0, 2, 1, hairD); P(8, 0, 2, 1, hairD); P(11, 2, 1, 1, hairD); }
     } else {
@@ -614,6 +617,11 @@
         P(3, 1, 10, 1, o.hat);
         P(5, 0, 6, 1, o.hat);
         P(6, 0, 4, 1, o.hatD || o.hat);
+      }
+      if (o.mask) {                     // ninja: pano cobrindo a boca e faixa vermelha na testa
+        if (dir !== 'up') P(4, 6, 8, 1, o.mask);
+        P(4, 2, 8, 1, p.trim);
+        if (dir === 'up') { P(7, 3, 2, 1, p.trim); P(8, 4, 1, 2, p.trim); }
       }
       if (o.ears) { P(1, 3, 3, 1, p.skin); P(12, 3, 3, 1, p.skin); P(2, 4, 2, 1, p.skin); P(12, 4, 2, 1, p.skin); }
       if (o.coil) {
@@ -888,6 +896,38 @@
       }
       for (let o = -6; o <= 6; o++) put(5, o, 1, cord);
       put(9, 0, 2, woodL);
+    });
+  }
+
+  // katana do ninja: cabo escuro, guarda redonda e lamina fina levemente curva
+  function buildKatanas() {
+    return rotSet(BLADE_CANVAS, (put) => {
+      const hilt = '#2a2436', wrap = '#c83a3a', guard = '#c79a1f', blade = '#eef2ff', bladeD = '#9aa6bd';
+      for (let d = 0; d <= 5; d++) put(d, 0, 2, d % 2 ? wrap : hilt);
+      for (let o = -2; o <= 2; o++) put(6, o, 1, guard);
+      for (let d = 7; d <= 21; d++) {
+        const curva = ((d - 7) / 14) ** 2 * -1.5;       // encurva para tras perto da ponta
+        put(d, curva - 0.4, 1, blade);
+        put(d, curva + 0.6, 1, bladeD);
+      }
+      put(22, -1.9, 1, blade);
+    });
+  }
+
+  // estrela ninja: 4 pontas, girando
+  function estrelaFrames() {
+    return [0, 1].map((f) => {
+      const c = mk(8, 8), x = c.getContext('2d');
+      const aco = '#c8cede', escuro = '#5c667e';
+      if (f === 0) {
+        px(x, 3, 0, 2, 8, aco); px(x, 0, 3, 8, 2, aco);
+        px(x, 3, 0, 1, 2, escuro); px(x, 6, 3, 2, 1, escuro);
+      } else {
+        for (let k = 0; k < 8; k++) { px(x, k, k, 1, 1, aco); px(x, 7 - k, k, 1, 1, aco); }
+        px(x, 2, 2, 4, 4, aco); px(x, 0, 0, 1, 1, escuro); px(x, 7, 7, 1, 1, escuro);
+      }
+      px(x, 3, 3, 2, 2, '#2a2436');
+      return c;
     });
   }
 
@@ -1389,6 +1429,13 @@
       trim: '#ffd34d', boot: '#2f2150'
     };
     const mageOpt = { hat: '#4a2f7a', hatD: '#33205a', scarf: true };
+
+    // ninja: roupa preta, capuz, pano no rosto e faixa vermelha
+    const ninjaPal = {
+      skin: '#e3b184', hair: '#14121a', body: '#1f2230', bodyD: '#14161f',
+      trim: '#c83a3a', boot: '#14161f'
+    };
+    const ninjaOpt = { mask: '#1f2230', scarf: true };
     const goblin = charSet(
       { skin: '#6fae3f', hair: '#2f4a1c', body: '#8a5a2b', bodyD: '#6b4a2a', trim: '#4a3018', boot: '#3c2a17' },
       { ears: true, mouth: '#2a1010' }
@@ -1469,8 +1516,10 @@
       heroes: {
         guerreiro: { walk: hero, atk: heroAtk },
         arqueiro: { walk: charSet(archerPal, archerOpt), atk: charSet(archerPal, archerOpt, 'atk') },
-        mago: { walk: charSet(magePal, mageOpt), atk: charSet(magePal, mageOpt, 'atk') }
+        mago: { walk: charSet(magePal, mageOpt), atk: charSet(magePal, mageOpt, 'atk') },
+        ninja: { walk: charSet(ninjaPal, ninjaOpt), atk: charSet(ninjaPal, ninjaOpt, 'atk') }
       },
+      katana: buildKatanas(), estrela: estrelaFrames(),
       blade: buildBlades(), bladeSteps: BLADE_STEPS, bladePivot: BLADE_PIVOT,
       bow: buildBows(), staff: buildStaves(), shaft: buildArrows(), goldShaft: buildGoldArrows(),
       iceorb: orbFrames('#7ff2ff', '#2f8fb8', '#eaffff'),

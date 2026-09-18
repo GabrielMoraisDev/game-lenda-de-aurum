@@ -39,7 +39,7 @@ pelo `servidor.js`, ele percebe (rota `/aurum-servidor`) e usa o WebSocket local
 |---|---|
 | **Cooperativo** | O jogo normal com os dois. Quem cair volta em 4 s ao lado do parceiro; se os dois caírem, é fim de jogo. Chaves e fragmentos valem para o grupo. |
 | **Competitivo** | 3 minutos: quem matar mais bichos vence. Aparecem inimigos novos o tempo todo na sala (até 6 vivos). Quem cair volta em 3 s. Placar e cronômetro no topo da tela. |
-| **VS** | Um contra o outro numa **arena fechada** (sem saídas), escolhida por quem cria a sala: Campo de Aurum, Caverna dos Goblins, Pântano Sombrio ou Castelo Sombrio. Sem monstros, **20 de vida** cada, mostrada em **barra** (no HUD e no placar do topo). Todos os ataques e especiais acertam o oponente (onda de choque tira 4, a explosão da bola de fogo 6). X, C e V liberam com o **dano causado no oponente**: 3, 6 e 10 pontos de vida tirados. |
+| **VS** | Um contra o outro numa **arena fechada** (sem saídas), escolhida por quem cria a sala: Campo de Aurum, Caverna dos Goblins, Pântano Sombrio ou Castelo Sombrio. Sem monstros, **20 de vida** cada, mostrada em **barra** (no HUD e no placar do topo). Todos os ataques e especiais acertam o oponente (todo F — onda de choque, bola de fogo, meteoro e explosivos — tira 2, o dobro de uma espada comum). X, C e V liberam com o **dano causado no oponente**: 3, 6 e 10 pontos de vida tirados. |
 
 No fim do competitivo e do VS, o anfitrião aperta ENTER para jogar de novo ou ESC para sair.
 
@@ -57,9 +57,9 @@ o jogador 1 e uma azul o jogador 2. O multijogador não mexe no save do modo sol
 | Atacar (espada, flecha ou magia) | J ou Z | A / X | botão A |
 | Rolar / dash (invulnerável; 2× mais longo no arqueiro) | Espaço, K ou Shift | B / RB | botão ROL |
 | **Habilidade especial** (recarga de 60 s, a única com recarga) | F | Y / RT | botão F |
-| **Salva de flechas** (arqueiro; segure para 4 salvas) / **Investida** (guerreiro; segure para carregar) / **Tempestade de raios** (mago) — libera com **3 abates** | X | LT / LB | botão X |
-| **4 giros de 360°** (arqueiro) / **Giro triplo** (guerreiro) / **Escudo** (mago) — libera com **6 abates** | C | RB / R3 | botão C |
-| **Flecha dourada** (arqueiro) / **Investida relâmpago** (guerreiro) / **Inferno** (mago) — libera com **10 abates** | V | L3 | botão V |
+| **Salva de flechas** (arqueiro; segure para 4 salvas) / **Investida** (guerreiro; segure para carregar; sem abates, só 1 s de espera) / **Tempestade de raios** (mago) / **Estrelas ninja** (ninja) — libera com **3 abates** | X | LT / LB | botão X |
+| **4 giros de 360°** (arqueiro) / **Tornado** (guerreiro) / **Escudo** (mago) / **Velocidade** (ninja) — libera com **6 abates** | C | RB / R3 | botão C |
+| **Flecha dourada** (arqueiro) / **Investida relâmpago** (guerreiro) / **Inferno** (mago) / **Névoa de veneno** (ninja) — libera com **10 abates** | V | L3 | botão V |
 | Escolher herói / confirmar | setas + Enter | direcional + Start | d-pad + ≡ |
 | Começar / continuar | Enter | Start | ≡ |
 | Pausa e mapa | Esc ou P | Select | ≡ |
@@ -67,7 +67,7 @@ o jogador 1 e uma azul o jogador 2. O multijogador não mexe no save do modo sol
 | Multijogador (tela inicial) | N | — | — |
 | FPS | F3 | — | — |
 
-## Os três heróis
+## Os quatro heróis
 
 Ao começar um jogo novo você escolhe a classe na tela de seleção (setas escolhem, Enter confirma).
 Cada uma tem sprites próprios nas 8 direções, ataque diferente e stats diferentes. A classe fica
@@ -75,9 +75,10 @@ gravada no save.
 
 | Classe | Arma | Vida | Velocidade | Dano | Ataque |
 |---|---|---|---|---|---|
-| **Guerreiro** | Espada | 5 corações | 1,30 | 1 | Golpe em arco de 180°, curto alcance |
-| **Arqueiro** | Arco | 5 corações | 1,9 (~1,5× o guerreiro) | 1 | Flecha carregável, onda de choque, rolamento longo |
+| **Guerreiro** | Espada | 5 corações | 1,5 | 1 | Golpe em arco de 180°, curto alcance |
+| **Arqueiro** | Arco | 5 corações | 1,7 | 1 | Flecha carregável, onda de choque, rolamento longo |
 | **Mago** | Cajado | 5 corações | 1,20 | 2 | Cajado em arco + magia elemental |
+| **Ninja** | Katana | 5 corações | 1,6 | 2 | Katana em arco de 180° (2× o dano da espada) |
 
 O primeiro fragmento dobra o dano de qualquer uma delas (espada, flechas ou cajado de ouro).
 
@@ -149,7 +150,7 @@ atual, quantos tiros faltam dele (ex.: `FOGO x5`) e qual vem depois:
 
 | Elemento | Dano do tiro | Efeito |
 |---|---|---|
-| **Fogo** | 2 | O inimigo **pega fogo por 5 s**, levando 1 de dano por segundo (5 no total) |
+| **Fogo** | 2 | Só o dano do impacto (não queima) |
 | **Gelo** | 1 | O inimigo fica **congelado por 10 s** num bloco de gelo: não anda, não ataca e não machuca no toque (pisca no último 1,5 s) |
 | **Raio** | 1 | **Paralisa por 2 s** e **pula** para o inimigo mais próximo (até 3 blocos), em cadeia, até 4 inimigos extras; cada um leva 1 de dano e fica paralisado |
 
@@ -161,14 +162,13 @@ Abates pela queimadura contam para quem lançou o fogo no competitivo.
 
 | Tecla | Habilidade | O que faz | Libera com |
 |---|---|---|---|
-| **X** | Tempestade de raios | Ergue o cajado e bate no chão: saem raios do mago até **todos os inimigos da sala**, que ficam **eletrocutados por 3 s** — paralisados e levando 1 de dano a cada 0,5 s (6 no total) | 3 abates |
-| **C** | Escudo arcano | Uma bolha azul em volta do mago: **invulnerável por 5 s** (nada causa dano, nem queimadura ou choque); pisca no último 1,5 s | 6 abates |
+| **X** | Tempestade de raios | Ergue o cajado e bate no chão: saem raios do mago até **todos os inimigos da sala**, que levam **1 de dano** e ficam **paralisados por 7 s** | 3 abates |
+| **C** | Escudo arcano | Uma bolha azul em volta do mago: **invulnerável por 6 s** (nada causa dano, nem queimadura ou choque); pisca no último 1,5 s | 6 abates |
 | **V** | Inferno | Ergue o cajado e bate no chão: um anel de fogo sai do mago e **todos os inimigos pegam fogo e morrem** em 1 s | 10 abates |
 
 O golpe no chão leva 1/3 de segundo erguendo o cajado; levar dano nesse meio cancela sem gastar o
-especial. Chefes resistem como nas outras habilidades de sala: no X ficam paralisados só 1 s (mas levam o
-choque inteiro) e no V levam 1/3 da vida e queimam. No VS o oponente é eletrocutado com metade do dano e,
-no V, só pega fogo.
+especial. O X paralisa por 7 s qualquer um: monstros, chefes e, no VS, o oponente. No V os chefes levam
+1/3 da vida e queimam; no VS o oponente só pega fogo.
 
 ### O guerreiro
 
@@ -181,21 +181,33 @@ quatro diagonais em 3/4), mais duas poses de golpe por direção (preparação e
 
 ### Especiais do guerreiro — X, C e V
 
-Mesmas teclas do arqueiro, com barras no HUD e abates que faltam na pausa. A investida (X) e a investida
+Mesmas teclas do arqueiro, com barras no HUD e abates que faltam na pausa. O X não depende de abates: depois de usar, só espera 1 s. A investida (X) e a investida
 relâmpago (V) deixam o guerreiro **invulnerável por 3 s, piscando**, contados a partir do golpe. Durante qualquer um dos três o
 guerreiro fica intocável, e nenhum deles troca de sala nem pega escada no meio.
 
 | Tecla | Especial | O que faz | Dano | Libera com |
 |---|---|---|---|---|
-| X (tapa) | Investida | dash com a espada à frente, 4 blocos (64 px) | 1× a espada | 3 abates |
-| X (segurado) | Investida longa | segure até a barra aparecer (1 s): ao soltar, atravessa a sala até a parede ou a borda | 1× | 3 abates |
-| X (barra cheia, 1,5 s) | Investida máxima | igual à longa | **3×** | 3 abates |
-| C | Giro triplo | 3 voltas de 360° com a espada; cada volta acerta de novo | **2×** por volta | 6 abates |
-| V | Investida relâmpago | avança em cada inimigo da sala, um por vez (sempre o mais próximo), atravessando paredes | **4×** em cada | 10 abates |
+| X (tapa) | Investida | dash com a espada à frente, 4 blocos (64 px) | 1× a espada | sempre (1 s de espera) |
+| X (segurado) | Investida longa | segure até a barra aparecer (1 s): ao soltar, atravessa a sala até a parede ou a borda | 1× | sempre (1 s de espera) |
+| X (barra cheia, 1,5 s) | Investida máxima | igual à longa | **3×** | sempre (1 s de espera) |
+| C | Tornado | **7 s girando** e correndo atrás do inimigo mais próximo com **o dobro da velocidade** de andar; cada volta acerta de novo | **2×** por volta | 6 abates |
+| V | Investida relâmpago | avança em cada inimigo da sala, um por vez (sempre o mais próximo), atravessando paredes; quem é atingido fica **paralisado 5 s** | **4×** em cada | 10 abates |
 
 Na investida cada inimigo leva o golpe uma vez. A relâmpago termina onde caiu o último inimigo;
 se esse lugar for parede ou buraco, o guerreiro volta ao ponto de partida. Sem inimigos na sala ela
 não sai e não gasta o especial. Enquanto segura o X o guerreiro anda devagar e mira com a espada.
+
+### O ninja
+
+Roupa preta, pano cobrindo o rosto e faixa vermelha na testa. Ataca com a **katana** (J), no mesmo arco de
+180° da espada, com **2× o dano da espada** (2, ou 4 com o fragmento).
+
+| Tecla | Habilidade | O que faz | Libera com |
+|---|---|---|---|
+| X | Estrelas ninja | **5 estrelas em leque** na direção encarada; atravessam paredes e inimigos até a borda da sala. Cada uma causa 1,5× a katana (3) | 3 abates |
+| C | Velocidade | velocidade de andar **2,7 por 10 s** | 6 abates |
+| V | Névoa de veneno | uma névoa cobre **a sala toda por 6 s**: todos os inimigos (e o oponente no VS) levam 1 de dano por segundo; o ninja é imune | 10 abates |
+| F | Explosivos | um explosivo voa até **cada inimigo da sala** e explode nele: inimigos comuns morrem, chefes levam 1/3 da vida | recarga de 60 s |
 
 ### O golpe de espada
 
@@ -223,7 +235,7 @@ parede, inimigo ou no fim do alcance, ele detona numa explosão que toma a sala 
 sombra crescendo no ponto de impacto). No impacto a **tela inteira fica branca** por 0,4 s e volta ao
 normal com um **fade** de 1,2 s — quando a imagem volta, os inimigos já estão todos mortos.
 
-As duas explosões funcionam igual:
+As explosões (e os explosivos do ninja) funcionam igual:
 
 - **Inimigos comuns morrem de um hit**, sem exceção — a explosão ignora a armadura do cavaleiro
   e a fase intangível do Lich.
@@ -391,7 +403,7 @@ src/game.js     máquina de estados, transições, HUD, save, loop principal, mo
 - Especiais do guerreiro: `KN_DASH_*` (investida, X), `KN_GIRO_*` (giro triplo, C) e `KN_RUSH_*` (investida relâmpago, V) em `src/entities.js`.
 - Arenas do VS: `ARENAS` e `genArena` em `src/world.js`.
 - Multijogador pela internet: `PEERJS_URL`, `TAM_CODIGO` e `SILENCIO` (tempo sem resposta até considerar que o outro saiu) em `src/net.js`.
-- Multijogador: `COMP_TEMPO`, `COMP_MAX`, `COMP_SPAWN`, `COMP_TIPOS`, `VS_HP` e `RESPAWN_*` em `src/game.js`; dano da onda e da explosão no VS em `PVP_WAVE`/`PVP_NOVA` (`src/entities.js`); porta do servidor com `PORT=9000 node servidor.js`.
+- Multijogador: `COMP_TEMPO`, `COMP_MAX`, `COMP_SPAWN`, `COMP_TIPOS`, `VS_HP` e `RESPAWN_*` em `src/game.js`; dano da onda e da explosão no VS em `PVP_F` (`src/entities.js`); porta do servidor com `PORT=9000 node servidor.js`.
 - Empurrão da flecha: `EMPURRA_FLECHA` (multiplicador do tiro normal) e `EMPURRA_TOTAL_VEL` (velocidade do arrasto da carga cheia) em `src/entities.js`.
 - Magias do mago: `CICLO_ELEM` (ordem ponderada dos elementos), `MG_*` (X, C e V: durações), `ELEMENTS` (dano e velocidade), `GELO_T`, `FOGO_T`/`FOGO_TICK`, `RAIO_T`, `RAIO_ALCANCE`, `RAIO_SALTOS`, `EFEITO_CHEFE`, `EFEITO_JOGADOR` e `MAGIA_SOLTA` (momento do golpe em que a magia sai) em `src/entities.js`.
 - Onda de choque: `WAVE_SPEED` e `WAVE_MAX` em `src/entities.js`.

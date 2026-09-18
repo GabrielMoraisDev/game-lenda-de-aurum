@@ -89,8 +89,15 @@
     if (autor.carrega(n) && autor === g.player) g.cdPulse = 10;
   };
 
-  const PVP_WAVE = 4, PVP_NOVA = 6;              // dano em jogador: onda e explosao (meios-coracoes)
-  G.PVP_NOVA = PVP_NOVA;
+  // no VS todo F causa no oponente 2x o dano de uma espada comum (meios-coracoes)
+  const PVP_F = 2;
+  G.PVP_F = PVP_F;
+
+  // paralisa `e` por `t` quadros (monstro, chefe ou jogador)
+  G.paralisa = function (e, t) {
+    if (e.dead || e.escudo > 0) return;
+    e.para = Math.max(e.para || 0, t);
+  };
 
   /* ================= base ================= */
 
@@ -187,8 +194,8 @@
   const CICLO_ELEM = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2];
 
   // habilidades do mago
-  const MG_CHOQUE_T = 180, MG_CHOQUE_TICK = 30; // eletrocutado por 3 s, 1 de dano a cada 0,5 s
-  const MG_ESCUDO_T = 300;                     // invulneravel por 5 s
+  const MG_CHOQUE_T = 420;                     // eletrocutado: parado por 7 s, 1 de dano so no raio
+  const MG_ESCUDO_T = 360;                     // invulneravel por 6 s
   const MG_INFERNO_T = 60;                     // queimam por 1 s antes de cair
   const MG_ERGUE = 20, MG_RECUA = 10;          // quadros erguendo o cajado e depois da batida
 
@@ -207,14 +214,23 @@
   const KN_DASH_SHORT = 64;                    // tapa: 4 blocos
   const KN_DASH_LONG = 400;                    // segurando: atravessa a sala ate a parede ou a borda
   const KN_DASH_MULT = 3;                      // carga cheia: 3x o dano da espada
+  const KN_X_CD = 60;                          // investida (X): sem abates, so 1 s de espera apos usar
   const KN_GIRO_VOLTA = 16;                    // quadros por volta de 360 graus
-  const KN_GIRO_VOLTAS = 3;
+  const KN_GIRO_T = 420;                       // giro (C): 7 s girando e correndo atras dos inimigos
   const KN_GIRO_MULT = 2;                      // 2x o dano da espada, a cada volta
   const KN_RUSH_SPD = 7;                       // px por quadro, ignorando paredes
   const KN_RUSH_PAUSA = 6;                     // quadros parado em cada golpe
   const KN_RUSH_MULT = 4;                      // 4x o dano da espada em cada inimigo
   const KN_RUSH_MAX = 900;                     // limite de seguranca: 15 s
   const KN_INVULNERAVEL = 180;                 // investida (X) e relampago (V): 3 s invulneravel, piscando
+  const KN_RUSH_PARA = 300;                    // relampago (V): quem e atingido fica paralisado 5 s
+
+  // ninja
+  const NJ_ESTRELAS = 5, NJ_ESTRELA_ABRE = 0.18;  // X: 5 estrelas em leque (rad entre elas)
+  const NJ_ESTRELA_SPD = 4, NJ_ESTRELA_MULT = 1.5; // dano = 1,5x o da katana
+  const NJ_TURBO_T = 600, NJ_TURBO_SPD = 2.7;  // C: velocidade 2,7 por 10 s
+  const NJ_VENENO_T = 360, NJ_VENENO_TICK = 60; // V: nevoa na sala toda por 6 s, 1 de dano por segundo
+  const NJ_BOMBA_VOO = 24;                     // F: quadros ate o explosivo cair no alvo
 
   // elementos do mago, na ordem do ciclo
   const ELEMENTS = [
@@ -227,14 +243,14 @@
   const CLASSES = {
     guerreiro: {
       nome: 'GUERREIRO', arma: 'ESPADA', modo: 'melee',
-      hp: 10, speed: 1.3, dmg: 1, dash: 1,
+      hp: 10, speed: 1.5, dmg: 1, dash: 1,
       desc: ['GOLPE EM ARCO DE 180 GRAUS', 'CORPO A CORPO, CURTO ALCANCE'],
       skill: 'BOLA DE FOGO'
     },
     arqueiro: {
       nome: 'ARQUEIRO', arma: 'ARCO', modo: 'bow',
-      hp: 10, speed: 1.9, dmg: 1, dash: 2,   // ~1,5x a velocidade do guerreiro; rolamento em dobro
-      desc: ['FLECHAS A DISTANCIA', '1,5X MAIS RAPIDO, ROLAMENTO LONGO'],
+      hp: 10, speed: 1.7, dmg: 1, dash: 2,   // rolamento em dobro
+      desc: ['FLECHAS A DISTANCIA', 'MAIS RAPIDO, ROLAMENTO LONGO'],
       skill: 'ONDA DE CHOQUE'
     },
     mago: {
@@ -242,10 +258,16 @@
       hp: 10, speed: 1.2, dmg: 2, dash: 1,
       desc: ['CAJADO EM ARCO + MAGIA A CADA GOLPE', 'DANO DOBRADO, MAIS LENTO'],
       skill: 'METEORO ELEMENTAL'
+    },
+    ninja: {
+      nome: 'NINJA', arma: 'KATANA', modo: 'ninja',
+      hp: 10, speed: 1.6, dmg: 2, dash: 1,   // katana: 2x o dano da espada
+      desc: ['KATANA EM ARCO, 2X O DANO DA ESPADA', 'ESTRELAS, VELOCIDADE E VENENO'],
+      skill: 'EXPLOSIVOS'
     }
   };
   G.CLASSES = CLASSES;
-  G.CLASS_IDS = ['guerreiro', 'arqueiro', 'mago'];
+  G.CLASS_IDS = ['guerreiro', 'arqueiro', 'mago', 'ninja'];
   const FIRE_CD = 3600, CAST_TIME = 20;   // 60 s de recarga a 60 fps
   const ROLL_TIME = 15, ROLL_CD = 24;
 
@@ -278,7 +300,10 @@
       this.dashLeft = 0;               // investida (X): distancia que falta
       this.dashDmg = 0;
       this.dashCheia = false;
-      this.giro = 0;                   // giro triplo (C): quadros restantes
+      this.xCd = 0;                    // guerreiro: espera apos a investida (X), em quadros
+      if (this.cls === 'guerreiro') this.spCd = 0;   // a investida nao depende de abates
+      this.turbo = 0;                  // ninja: quadros de velocidade extra (C)
+      this.giro = 0;                   // giro (C): quadros restantes
       this.giroAng = 0;
       this.rush = null;                // investida relampago (V)
       this.lamina = null;              // angulo fixo da espada durante os especiais
@@ -406,7 +431,7 @@
     }
 
     startAttack(g) {
-      if (this.def.modo === 'melee') {
+      if (this.def.modo === 'melee' || this.def.modo === 'ninja') {
         this.atk = ATK_TIME;
         this.hitSet.clear();
         Sound.play('swing');
@@ -556,14 +581,15 @@
       if (gc.t >= MG_ERGUE + MG_RECUA) { this.golpeChao = null; this.lamina = null; }
     }
 
-    // X: todos os alvos da sala eletrocutados por 3 s, raios saindo do mago ate cada um
+    // X: todos os alvos da sala eletrocutados: 1 de dano e parados por 7 s, raios saindo do mago ate cada um
     soltaChoque(g) {
       this.spCd = this.spMax;
       const alvos = g.alvos(this);
       for (const e of alvos) {
         g.ents.push(new Relampago([[this.cx, this.cy - 4], [e.cx, e.cy]]));
-        G.aplicaElemento(g, e, ELEMENTS[2], this);          // paralisa
-        eletrocuta(e, this);
+        danoDireto(g, e, 1, this);
+        G.paralisa(e, MG_CHOQUE_T);
+        g.particles.burst(e.cx, e.cy, 10, 1, 1.8, 14);
       }
       for (let k = 0; k < 4; k++) {                          // raios para cima, saindo do mago
         const a = -Math.PI / 2 + (k - 1.5) * 0.5;
@@ -604,7 +630,54 @@
       g.say('INFERNO!', 60);
     }
 
-    /* ---------- guerreiro: X investida, C giro triplo, V investida relampago ---------- */
+    /* ---------- ninja: X estrelas, C velocidade, V nevoa de veneno ---------- */
+
+    updateNinja(g, i) {
+      if (i.hit('special')) {
+        if (this.spCd > 0) this.bloqueado(g, this.spCd);
+        else this.lancaEstrelas(g);
+      }
+      if (i.hit('spin')) {
+        if (this.spinCd > 0) this.bloqueado(g, this.spinCd);
+        else {
+          this.spinCd = this.spinMax;
+          this.turbo = NJ_TURBO_T;
+          this.speed = NJ_TURBO_SPD;
+          g.particles.burst(this.cx, this.cy, 16, 5, 2, 18);
+          Sound.play('spin');
+          g.say('PASSO DO VENTO!', 60);
+        }
+      }
+      if (i.hit('gold')) {
+        if (this.goldCd > 0) this.bloqueado(g, this.goldCd);
+        else {
+          this.goldCd = this.goldMax;
+          g.addEnt(new NevoaVeneno(this));
+          g.particles.burst(this.cx, this.cy, 30, 3, 2.6, 26, 2);
+          g.shake(5);
+          Sound.play('nova');
+          g.say('NEVOA VENENOSA!', 60);
+        }
+      }
+    }
+
+    // X: 5 estrelas em leque que atravessam tudo ate a borda da sala
+    lancaEstrelas(g) {
+      this.spCd = this.spMax;
+      const v = DIR_VEC[this.dir], base = Math.atan2(v[1], v[0]);
+      const m = this.muzzle(8);
+      const dmg = Math.ceil(this.dano() * NJ_ESTRELA_MULT);
+      for (let k = 0; k < NJ_ESTRELAS; k++) {
+        const a = base + (k - (NJ_ESTRELAS - 1) / 2) * NJ_ESTRELA_ABRE;
+        g.addEnt(new Estrela(m[0], m[1], Math.cos(a) * NJ_ESTRELA_SPD, Math.sin(a) * NJ_ESTRELA_SPD, dmg));
+      }
+      this.atk = ATK_REC;
+      Sound.play('volley');
+      g.particles.burst(m[0], m[1], 10, 5, 1.8, 14);
+      g.say('ESTRELAS NINJA!', 50);
+    }
+
+    /* ---------- guerreiro: X investida, C giro, V investida relampago ---------- */
 
     especialAtivo() { return this.dashLeft > 0 || this.giro > 0 || this.rush !== null; }
 
@@ -623,7 +696,7 @@
         else if (this.iniciaRush(g)) return;
       }
       if (i.hit('special') && !this.spCharging) {
-        if (this.spCd > 0) this.bloqueado(g, this.spCd);
+        if (this.xCd > 0) Sound.play('blocked');
         else { this.spCharging = true; this.spCharge = 0; }
       }
       if (!this.spCharging) return;
@@ -650,7 +723,7 @@
       this.dashDmg = this.dano() * (cheia ? KN_DASH_MULT : 1);
       this.dashCheia = cheia;
       this.hitSet.clear();
-      this.spCd = this.spMax;
+      this.xCd = KN_X_CD;
       this.inv = Math.max(this.inv, KN_INVULNERAVEL);
       Sound.play(cheia ? 'shootbig' : 'swing');
       g.shake(cheia ? 6 : 3);
@@ -690,7 +763,7 @@
 
     iniciaGiro(g) {
       const v = DIR_VEC[this.dir];
-      this.giro = KN_GIRO_VOLTA * KN_GIRO_VOLTAS;
+      this.giro = KN_GIRO_T;
       this.giroAng = Math.atan2(v[1], v[0]);
       this.spinCd = this.spinMax;
       this.spCharging = false; this.spCharge = 0;
@@ -698,11 +771,12 @@
       Sound.play('spin');
       g.particles.burst(this.cx, this.cy, 20, 0, 2.2, 22);
       g.shake(4);
-      g.say('GIRO TRIPLO!', 60);
+      g.say('TORNADO DE ACO!', 60);
     }
 
+    // gira por 7 s correndo atras do inimigo mais proximo, com o dobro da velocidade de andar
     updateGiro(g) {
-      const feito = KN_GIRO_VOLTA * KN_GIRO_VOLTAS - this.giro;
+      const feito = KN_GIRO_T - this.giro;
       if (feito > 0 && feito % KN_GIRO_VOLTA === 0) {   // cada volta acerta de novo
         this.hitSet.clear();
         Sound.play('swing');
@@ -710,6 +784,17 @@
       const ang = this.giroAng + (feito / KN_GIRO_VOLTA) * Math.PI * 2;
       this.lamina = ang;
       this.dir = dir8(Math.cos(ang), Math.sin(ang));   // a mao acompanha a lamina
+      const alvo = this.proximoAlvo(g, new Set());
+      if (alvo) {
+        const dx = alvo.cx - this.cx, dy = alvo.cy - this.cy, d = Math.hypot(dx, dy);
+        if (d > 2) {
+          const sp = Math.min(d, this.def.speed * 2);
+          // nao passa da borda: senao troca de sala no meio do golpe
+          const nx = G.clamp(this.x + (dx / d) * sp, 1, G.VIEW_W - this.w - 1);
+          const ny = G.clamp(this.y + (dy / d) * sp, 1, G.VIEW_H - this.h - 1);
+          G.moveEnt(this, g.room, nx - this.x, ny - this.y, false, false);
+        }
+      }
       this.swingHit(g, KN_GIRO_MULT);
       this.pushTrail(ang);
       g.particles.spawn(this.handX() + Math.cos(ang) * 21, this.handY() + Math.sin(ang) * 21, 0, 0, 8, 0, 1, 0);
@@ -772,6 +857,7 @@
         const e = r.alvo;
         r.feitos.add(e);
         G.ferir(g, e, this.dano() * KN_RUSH_MULT, Math.cos(ang), Math.sin(ang), this);
+        G.paralisa(e, KN_RUSH_PARA);
         g.particles.burst(e.cx, e.cy, 14, 1, 2.4, 18);
         Sound.play('goldhit');
         g.shake(4);
@@ -907,9 +993,13 @@
       if (this.hurtT > 0) this.hurtT--;
       if (this.rollCd > 0) this.rollCd--;
       if (this.fireCd > 0) this.fireCd--;   // so o F tem recarga por tempo
+      if (this.xCd > 0) this.xCd--;
+      if (this.turbo > 0 && --this.turbo === 0) this.speed = this.def.speed;
+      if (this.turbo > 0 && (g.tick & 3) === 0) {
+        g.particles.spawn(this.cx + (Math.random() - 0.5) * 6, this.y + this.h, 0, -0.2, 10, 5, 1, 0);
+      }
 
       if (this.fogo > 0) { tickFogo(g, this); if (this.dead) return; }
-      if (this.choque > 0) { tickChoque(g, this); if (this.dead) return; }
       if (this.gelo > 0 || this.para > 0) {         // congelado ou paralisado: nao age
         if (this.gelo > 0) this.gelo--;
         if (this.para > 0) this.para--;
@@ -996,6 +1086,8 @@
       } else if (this.def.modo === 'magic') {
         this.updateMago(g, i);
         if (this.golpeChao) return;
+      } else if (this.def.modo === 'ninja') {
+        this.updateNinja(g, i);
       }
 
       // movimento
@@ -1086,6 +1178,15 @@
         return;
       }
 
+      if (this.def.modo === 'ninja') {        // ninja: um explosivo em cada inimigo da sala
+        const alvos = g.alvos(this);
+        for (const e of alvos) g.addEnt(new Explosivo(this.cx, this.cy - 4, e));
+        g.particles.burst(this.cx, this.cy, 16, 9, 2, 18);
+        Sound.play('bow');
+        g.say(alvos.length ? this.def.skill + '!' : 'NENHUM INIMIGO', 70);
+        return;
+      }
+
       const v = DIR_VEC[this.dir];
       g.addEnt(new Fireball(this.cx - 7 + v[0] * 10, this.cy - 7 + v[1] * 10, v[0] * 2.3, v[1] * 2.3));
       g.particles.burst(this.cx + v[0] * 12, this.cy + v[1] * 12, 20, 9, 2.4, 22, 2);
@@ -1137,9 +1238,9 @@
       ctx.drawImage(set[idx], (this.handX() - piv) | 0, (this.handY() - piv) | 0);
     }
 
-    // espada do guerreiro ou cajado do mago, na inclinacao do golpe, com rastro
+    // espada do guerreiro, cajado do mago ou katana do ninja, na inclinacao do golpe, com rastro
     drawBlade(ctx, S, withBlade) {
-      const set = this.def.modo === 'magic' ? S.staff : S.blade;
+      const set = this.def.modo === 'magic' ? S.staff : this.def.modo === 'ninja' ? S.katana : S.blade;
       const n = S.bladeSteps, step = (Math.PI * 2) / n, piv = S.bladePivot;
       // o canvas da lamina e centrado no pivo: alinha o pivo com a mao
       const hx = (this.handX() - piv) | 0, hy = (this.handY() - piv) | 0;
@@ -1217,24 +1318,7 @@
 
   /* ================= efeitos das magias ================= */
 
-  // eletrocutado pelo X do mago: paralisado e levando 1 de dano a cada 0,5 s
-  function eletrocuta(e, dono) {
-    e.choque = MG_CHOQUE_T; e.choqueT = MG_CHOQUE_TICK; e.choqueDono = dono;
-    if (!(e instanceof Player) && !e.boss) e.para = Math.max(e.para || 0, MG_CHOQUE_T);
-  }
-
-  function tickChoque(g, e) {
-    e.choque--;
-    if ((g.tick & 3) === 0) {
-      g.particles.spawn(e.cx + (Math.random() - 0.5) * (e.w + 6), e.cy + (Math.random() - 0.5) * (e.h + 6),
-        0, 0, 5, Math.random() < 0.5 ? 1 : 0, 1, 0);
-    }
-    if (--e.choqueT > 0) return;
-    e.choqueT = MG_CHOQUE_TICK * (e instanceof Player ? 2 : 1);   // no VS o oponente leva metade
-    danoDireto(g, e, 1, e.choqueDono);
-  }
-
-  // dano sem empurrao nem invencibilidade (queimadura, choque); conta o abate para quem lancou
+  // dano sem empurrao nem invencibilidade (queimadura, choque, veneno); conta o abate para quem lancou
   function danoDireto(g, e, n, dono) {
     if (e.dead || e.escudo > 0) return;
     if (e instanceof Player) G.danoNoOponente(g, e, dono, Math.min(n, e.hp));
@@ -1290,7 +1374,7 @@
       ctx.fillStyle = 'rgba(255,106,36,0.35)';
       ctx.fillRect(x + 1, y + (h >> 1), w - 2, h >> 1);
     }
-    if (e.para > 0 || e.choque > 0) {
+    if (e.para > 0) {
       ctx.fillStyle = (tick & 4) ? '#fff6a0' : '#7ff2ff';
       for (let k = 0; k < 3; k++) {
         const a = ((tick * 0.4 + k * 2.1) % (Math.PI * 2));
@@ -1356,7 +1440,6 @@
     update(g) {
       if (this.hurtT > 0) this.hurtT--;
       if (this.fogo > 0) { tickFogo(g, this); if (this.dead) return; }
-      if (this.choque > 0) { tickChoque(g, this); if (this.dead) return; }
       if (this.gelo > 0 || this.para > 0) {         // congelado ou paralisado: nao anda nem machuca
         if (this.gelo > 0) this.gelo--;
         if (this.para > 0) this.para--;
@@ -1448,7 +1531,7 @@
     } else {
       Ent.prototype.draw.call(this, ctx, S, tick);
     }
-    if (!img || !(this.gelo > 0 || this.fogo > 0 || this.para > 0 || this.choque > 0)) return;
+    if (!img || !(this.gelo > 0 || this.fogo > 0 || this.para > 0)) return;
     const dx = (this.cx - img.width / 2) | 0;
     const dy = this.fly ? (this.cy - img.height / 2) | 0 : (this.y + this.h - img.height + 2) | 0;
     desenhaEfeito(ctx, this, dx, dy, img.width, img.height, tick);
@@ -3027,7 +3110,7 @@
           if (!this.hits(e)) continue;
           const d = Math.hypot(this.vx, this.vy) || 1;
           G.ferir(g, e, this.dmg, this.vx / d, this.vy / d, this.dono);
-          if (this.elem) {
+          if (this.elem && this.elem.id !== 'fogo') {   // a bola de fogo so causa o dano do impacto
             G.aplicaElemento(g, e, this.elem, this.dono);
             if (this.elem.id === 'raio') G.raioEmCadeia(g, e, this.dmg, this.dono);
           }
@@ -3349,8 +3432,8 @@
 
         this.atingidos.push(e);
         const a = Math.atan2(e.cy - this.oy, e.cx - this.ox);
-        // ignora armadura e fases intangiveis; chefe leva 1/3, jogador (VS) leva PVP_WAVE
-        const dmg = e instanceof Player ? PVP_WAVE : e.boss ? Math.max(1, Math.ceil(e.maxhp / 3)) : 999;
+        // ignora armadura e fases intangiveis; chefe leva 1/3, jogador (VS) leva PVP_F
+        const dmg = e instanceof Player ? PVP_F : e.boss ? Math.max(1, Math.ceil(e.maxhp / 3)) : 999;
         G.ferirBruto(g, e, dmg, Math.cos(a), Math.sin(a), this.dono);
         if (e.boss) g.particles.burst(e.cx, e.cy, 12, 3, 2, 20);
       }
@@ -3462,6 +3545,110 @@
     }
   }
   G.Fireball = Fireball;
+
+  /* ================= ninja ================= */
+
+  // estrela ninja: gira, atravessa paredes e inimigos e so some na borda da sala
+  class Estrela extends Ent {
+    constructor(x, y, vx, vy, dmg) {
+      super(x - 3, y - 3, 6, 6);
+      this.vx = vx; this.vy = vy; this.dmg = dmg;
+      this.friendly = true; this.shot = true;
+      this.atingidos = new Set();
+    }
+    update(g) {
+      this.anim++;
+      this.x += this.vx; this.y += this.vy;
+      if (this.x < -8 || this.y < -8 || this.x > VIEW_W + 8 || this.y > VIEW_H + 8) { this.dead = true; return; }
+      const alvos = g.alvos(this.dono);
+      for (let i = 0; i < alvos.length; i++) {
+        const e = alvos[i];
+        if (e.dead || this.atingidos.has(e) || !this.hits(e)) continue;
+        this.atingidos.add(e);
+        G.ferir(g, e, this.dmg, this.vx / NJ_ESTRELA_SPD, this.vy / NJ_ESTRELA_SPD, this.dono);
+        g.particles.burst(this.cx, this.cy, 6, 5, 1.4, 12);
+      }
+    }
+    draw(ctx, S) {
+      const img = S.estrela[(this.anim >> 1) & 1];
+      ctx.drawImage(img, (this.cx - 4) | 0, (this.cy - 4) | 0);
+    }
+  }
+
+  // nevoa de veneno: cobre a sala toda por 6 s; todos menos o ninja levam 1 de dano por segundo
+  class NevoaVeneno extends Ent {
+    constructor(dono) {
+      super(0, VIEW_H, 0, 0);                  // desenhada por cima de tudo
+      this.dono = dono;
+      this.t = NJ_VENENO_T;
+      this.tick = NJ_VENENO_TICK;
+    }
+    update(g) {
+      if (--this.t <= 0) { this.dead = true; return; }
+      for (let k = 0; k < 2; k++) {
+        g.particles.spawn(Math.random() * VIEW_W, Math.random() * VIEW_H, (Math.random() - 0.5) * 0.3, -0.3,
+          20 + Math.random() * 20, Math.random() < 0.7 ? 3 : 8, 2, 0);
+      }
+      if (--this.tick > 0) return;
+      this.tick = NJ_VENENO_TICK;
+      for (const e of g.alvos(this.dono)) {
+        danoDireto(g, e, 1, this.dono);
+        g.particles.burst(e.cx, e.cy, 6, 3, 1.2, 14);
+      }
+    }
+    draw(ctx, S, tick) {
+      const fade = Math.min(1, this.t / 40, (NJ_VENENO_T - this.t) / 20);
+      ctx.fillStyle = 'rgba(90,190,60,' + (0.22 * fade).toFixed(3) + ')';
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+      ctx.fillStyle = 'rgba(140,230,90,' + (0.35 * fade).toFixed(3) + ')';
+      for (let k = 0; k < 40; k++) {                // manchas de nevoa passando devagar
+        const x = (k * 71 + tick * (0.3 + (k % 3) * 0.2)) % VIEW_W, y = (k * 43) % VIEW_H;
+        ctx.fillRect(x | 0, y | 0, 6 + (k % 4) * 2, 2);
+      }
+    }
+  }
+
+  // explosivo do F do ninja: voa em arco ate o alvo e explode nele. Monstro morre,
+  // chefe leva 1/3 da vida, oponente no VS leva PVP_F
+  class Explosivo extends Ent {
+    constructor(x0, y0, alvo) {
+      super(x0 - 4, y0 - 4, 8, 8);
+      this.x0 = x0; this.y0 = y0; this.alvo = alvo;
+      this.tx = alvo.cx; this.ty = alvo.cy;
+      this.t = 0; this.alt = 0;
+    }
+    update(g) {
+      this.anim++;
+      if (!this.alvo.dead) { this.tx = this.alvo.cx; this.ty = this.alvo.cy; }
+      const k = ++this.t / NJ_BOMBA_VOO;
+      this.x = G.lerp(this.x0, this.tx, k) - 4; this.y = G.lerp(this.y0, this.ty, k) - 4;
+      this.alt = Math.sin(k * Math.PI) * 18;
+      if (this.t < NJ_BOMBA_VOO) return;
+      this.dead = true;
+      g.particles.burst(this.cx, this.cy, 26, 9, 2.8, 24, 2);
+      g.particles.burst(this.cx, this.cy, 10, 1, 1.6, 20);
+      g.shake(8);
+      g.flashT = Math.max(g.flashT, 6);
+      Sound.play('fire');
+      const e = this.alvo;
+      if (!e.dead) {
+        const a = Math.atan2(e.cy - this.y0, e.cx - this.x0);
+        const dmg = e instanceof Player ? PVP_F : e.boss ? Math.max(1, Math.ceil(e.maxhp / 3)) : 999;
+        G.ferirBruto(g, e, dmg, Math.cos(a), Math.sin(a), this.dono);
+      }
+      // o que nasce da explosao (slime que se divide) tambem vai junto
+      for (const o of g.alvos(this.dono)) {
+        if (o.dead || o.boss || o instanceof Player || G.dist(o.cx, o.cy, this.cx, this.cy) > 18) continue;
+        G.ferirBruto(g, o, 999, 0, 0, this.dono);
+      }
+    }
+    draw(ctx, S) {
+      const cx = this.cx | 0, cy = this.cy | 0;
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(cx - 3, cy + 3, 7, 2);
+      ctx.drawImage(S.bomba[(this.anim >> 2) & 1], cx - 4, (cy - 5 - this.alt) | 0);
+    }
+  }
 
   /* ================= itens ================= */
 
