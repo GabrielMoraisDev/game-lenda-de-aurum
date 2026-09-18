@@ -39,7 +39,7 @@ pelo `servidor.js`, ele percebe (rota `/aurum-servidor`) e usa o WebSocket local
 |---|---|
 | **Cooperativo** | O jogo normal com os dois. Quem cair volta em 4 s ao lado do parceiro; se os dois caírem, é fim de jogo. Chaves e fragmentos valem para o grupo. |
 | **Competitivo** | 3 minutos: quem matar mais bichos vence. Aparecem inimigos novos o tempo todo na sala (até 6 vivos). Quem cair volta em 3 s. Placar e cronômetro no topo da tela. |
-| **VS** | Um contra o outro numa **arena fechada** (sem saídas), escolhida por quem cria a sala: Campo de Aurum, Caverna dos Goblins, Pântano Sombrio ou Castelo Sombrio. Sem monstros, **20 de vida** cada, mostrada em **barra** (no HUD e no placar do topo). Todos os ataques e especiais acertam o oponente (todo F — onda de choque, bola de fogo, meteoro, explosivos e tsunami — tira 2, o dobro de uma espada comum). X, C e V liberam com o **dano causado no oponente**: 3, 6 e 10 pontos de vida tirados. |
+| **VS** | Um contra o outro numa **arena fechada** (sem saídas), escolhida por quem cria a sala: Campo de Aurum, Caverna dos Goblins, Pântano Sombrio ou Castelo Sombrio. Sem monstros, **20 de vida** cada, mostrada em **barra** (no HUD e no placar do topo). Todos os ataques e especiais acertam o oponente (todo F — onda de choque, bola de fogo, meteoro, explosivos, tsunami e bomba nuclear — tira 2, o dobro de uma espada comum). X, C e V liberam com o **dano causado no oponente**: 3, 6 e 10 pontos de vida tirados. |
 
 No fim do competitivo e do VS, o anfitrião aperta ENTER para jogar de novo ou ESC para sair.
 
@@ -57,9 +57,9 @@ o jogador 1 e uma azul o jogador 2. O multijogador não mexe no save do modo sol
 | Atacar (espada, flecha ou magia) | J ou Z | A / X | botão A |
 | Rolar / dash (invulnerável; 2× mais longo no arqueiro) | Espaço, K ou Shift | B / RB | botão ROL |
 | **Habilidade especial** (recarga de 60 s, a única com recarga) | F | Y / RT | botão F |
-| **Salva de flechas** (arqueiro; segure para 4 salvas) / **Investida** (guerreiro; segure para carregar; sem abates, só 1 s de espera) / **Tempestade de raios** (mago) / **Estrelas ninja** (ninja) / **Tridente arremessado** (Percy) — libera com **3 abates** | X | LT / LB | botão X |
-| **4 giros de 360°** (arqueiro) / **Tornado** (guerreiro) / **Escudo** (mago) / **Velocidade** (ninja) / **Barreira de água** (Percy) — libera com **6 abates** | C | RB / R3 | botão C |
-| **Flecha dourada** (arqueiro) / **Investida relâmpago** (guerreiro) / **Inferno** (mago) / **Névoa de veneno** (ninja) / **Redemoinho** (Percy) — libera com **10 abates** | V | L3 | botão V |
+| **Salva de flechas** (arqueiro; segure para 4 salvas) / **Investida** (guerreiro; segure para carregar; sem abates, só 1 s de espera) / **Tempestade de raios** (mago) / **Estrelas ninja** (ninja) / **Tridente arremessado** (Percy; sem abates, 3 s de espera) / **3 minas** (bomber) — libera com **3 abates** | X | LT / LB | botão X |
+| **4 giros de 360°** (arqueiro) / **Tornado** (guerreiro) / **Escudo** (mago) / **Velocidade** (ninja) / **Barreira de água** (Percy) / **Escudo de bombas** (bomber) — libera com **6 abates** | C | RB / R3 | botão C |
+| **Flecha dourada** (arqueiro) / **Investida relâmpago** (guerreiro) / **Inferno** (mago) / **Névoa de veneno** (ninja) / **Redemoinho** (Percy) / **Bomba grudenta** (bomber) — libera com **10 abates** | V | L3 | botão V |
 | Escolher herói / confirmar | setas + Enter | direcional + Start | d-pad + ≡ |
 | Começar / continuar | Enter | Start | ≡ |
 | Menu: loja e mapa (pausa no solo) | Esc ou P | Select | ≡ |
@@ -82,7 +82,7 @@ cima e para baixo escolhem, J ou Enter compra, ESC fecha. Cada item se compra um
 No solo o jogo fica pausado com o menu aberto. No multijogador **cada jogador abre a sua loja** e
 compra com as próprias moedas; o jogo não pausa — quem está na loja fica parado.
 
-## Os cinco heróis
+## Os seis heróis
 
 Ao começar um jogo novo você escolhe a classe na tela de seleção (setas escolhem, Enter confirma).
 Cada uma tem sprites próprios nas 8 direções, ataque diferente e stats diferentes. A classe fica
@@ -95,6 +95,7 @@ gravada no save.
 | **Mago** | Cajado | 5 corações | 1,20 | 2 | Cajado em arco + magia elemental |
 | **Ninja** | Katana | 5 corações | 1,6 | 2 | Katana em arco de 180° (2× o dano da espada) |
 | **Percy** | Tridente | 5 corações | 1,5 | 1 | Golpe da espada com 1,5× o alcance |
+| **Bomber** | Bombas | 5 corações | 1,4 | 1 | Bombas em arco; a cada 10, uma grande |
 
 O primeiro fragmento dobra o dano de qualquer uma delas (espada, flechas ou cajado de ouro).
 
@@ -232,10 +233,22 @@ arco de 180° da espada do guerreiro, com o mesmo dano, mas **1,5× o alcance**.
 
 | Tecla | Habilidade | O que faz | Libera com |
 |---|---|---|---|
-| X | Tridente arremessado | arremessa o tridente na direção encarada: vai até a borda da sala e volta para a mão em **2 s**, atravessando paredes. **2× o dano** do tridente, acerta cada alvo na ida e na volta. Sem o tridente na mão, o J fica travado até ele voltar | 3 abates |
+| X | Tridente arremessado | arremessa o tridente na direção encarada: vai até a borda da sala e volta para a mão em **2 s**, atravessando paredes. **2× o dano** do tridente, acerta cada alvo na ida e na volta. Sem o tridente na mão, o J fica travado até ele voltar | sempre (3 s de espera) |
 | C | Barreira de água | parede de **5 blocos** à frente do Percy por 8 s. Inimigos (e o oponente no VS) não atravessam e tiros inimigos se desfazem nela | 6 abates |
 | V | Redemoinho | um tornado de água no meio da sala **puxa todos para o centro por 8 s** e no fim explode: quem estiver a até 3,5 blocos leva **4× o dano** do tridente | 10 abates |
 | F | Tsunami | uma onda entra pela esquerda e **arrasta todos para a direita**; os monstros morrem afogados, chefes levam 1/3 da vida. No VS o oponente não morre: é arrastado até a borda direita e leva o dano de F do VS | recarga de 60 s |
+
+### Bomber
+
+Gorro de aviador, roupa verde-oliva e cinto amarelo.
+
+| Tecla | Habilidade | O que faz | Libera com |
+|---|---|---|---|
+| J | Bomba | joga uma bomba em arco 3,5 blocos à frente; ela explode ao cair: **2× o dano** num raio de ~1 bloco. **A cada 10 bombas, uma grande** (mais longe, **5×** o dano, raio de ~3 blocos). O HUD mostra quantas faltam | — |
+| X | 3 minas | cada aperto planta uma mina **onde o bomber está** (3 por uso). Arma em 0,5 s e explode quando um alvo pisa nela: 4× o dano num raio de ~2 blocos | 3 abates |
+| C | Escudo de bombas | 6 bombas giram em volta dele por 7 s; cada uma explode ao encostar num alvo (3× o dano) e desfaz tiros inimigos. As que sobrarem **explodem todas juntas** no fim | 6 abates |
+| V | Bomba grudenta | voa até o inimigo mais próximo e gruda nele. **Se ele andar, explode**: monstro morre na hora, chefe leva 1/3 da vida. No VS não mata: tira 4× o dano | 10 abates |
+| F | Bomba nuclear | cai no meio da sala; no impacto a tela fica branca e volta com fade. Monstros morrem, chefes levam 1/3 e o oponente no VS leva o dano de F onde estiver | recarga de 60 s |
 
 ### O golpe de espada
 

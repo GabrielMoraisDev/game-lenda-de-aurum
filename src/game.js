@@ -332,7 +332,8 @@
     telaBranca() { this.brancoT = BRANCO_CHEIO + BRANCO_FADE; }
 
     // explosao da bola de fogo: limpa a sala, chefe resiste levando 1/3 da vida
-    novaBlast(x, y, dono) {
+    // raioVs: distancia em que o oponente no VS leva o dano (a bomba nuclear pega a arena toda)
+    novaBlast(x, y, dono, raioVs) {
       this.shake(14);
       this.flashT = 12;
       Sound.play('nova');
@@ -363,7 +364,7 @@
       }
       if (this.modo() === 'vs') {             // o oponente dentro do raio leva dano fixo
         for (const p of this.players) {
-          if (p === dono || p.dead || G.dist(x, y, p.cx, p.cy) > 72) continue;
+          if (p === dono || p.dead || G.dist(x, y, p.cx, p.cy) > (raioVs || 72)) continue;
           const a = Math.atan2(p.cy - y, p.cx - x);
           G.ferirBruto(this, p, G.PVP_F, Math.cos(a), Math.sin(a), dono);
         }
@@ -1296,13 +1297,14 @@
         if (pronto) { if ((this.tick >> 4) & 1) this.text(c, 'OK', x + 34, 30, cor); }
         else this.text(c, (max - falta) + '/' + max, x + 34, 30, '#5c667e');
       };
-      if (p.cls === 'guerreiro') {             // investida: so 1 s de espera, sem abates
+      if (p.def.xEspera) {                     // X sem abates: so a espera depois de usar
         const pronto = p.xCd === 0;
         this.text(c, 'X', 160, 30, pronto ? '#7fd858' : '#5c667e');
         c.fillStyle = '#2a2a3a'; c.fillRect(168, 26, 22, 4);
         c.fillStyle = pronto ? '#7fd858' : '#4a7a3a';
-        c.fillRect(168, 26, Math.round(22 * (1 - p.xCd / 60)), 4);
-        if (pronto && (this.tick >> 4) & 1) this.text(c, 'OK', 194, 30, '#7fd858');
+        c.fillRect(168, 26, Math.round(22 * (1 - p.xCd / p.def.xEspera)), 4);
+        if (pronto) { if ((this.tick >> 4) & 1) this.text(c, 'OK', 194, 30, '#7fd858'); }
+        else this.text(c, Math.ceil(p.xCd / 60) + 's', 194, 30, '#5c667e');
       } else slot('X', 160, p.spCd, p.spMax, '#7fd858', '#4a7a3a');
       slot('C', 222, p.spinCd, p.spinMax, '#b45cff', '#5a3a7a');
       slot('V', 284, p.goldCd, p.goldMax, '#ffd34d', '#8a6a1f');
@@ -1314,6 +1316,11 @@
         if (p.escudo > 0) this.text(c, 'ESCUDO ' + Math.ceil(p.escudo / 60) + 's', 222, 12, '#7ff2ff');
       }
       if (p.turbo > 0) this.text(c, 'VELOCIDADE ' + Math.ceil(p.turbo / 60) + 's', 222, 12, '#c8cede');
+      if (p.def.modo === 'bomber') {
+        const falta = 10 - (p.bombasZ % 10);
+        this.text(c, falta === 1 ? 'PROXIMA: GRANDE!' : 'GRANDE EM ' + falta, 160, 12, falta === 1 ? '#ffd34d' : '#8f96a8');
+        if (p.minas > 0) this.text(c, 'MINAS x' + p.minas, 250, 12, '#e33b4e');
+      }
 
       // embaixo a esquerda: sala e nome do lugar (nao cobre mais as barras)
       if (this.room && this.level) {
@@ -1393,7 +1400,7 @@
       this.text(c, 'ESCOLHA SEU HEROI', VIEW_W / 2, 20, '#ffd34d', 'center', 12);
 
       const S = this.SPR;
-      const pw = 64, ph = 96, gap = 4;
+      const pw = 62, ph = 96, gap = 4;
       const total = G.CLASS_IDS.length * pw + (G.CLASS_IDS.length - 1) * gap;
       const ox = (VIEW_W - total) / 2, oy = 32;
 
@@ -1439,13 +1446,16 @@
       if (G.CLASS_IDS[this.selIdx] === 'guerreiro') {
         this.text(c, 'X INVESTIDA 1s   C TORNADO 7s   V RELAMPAGO', VIEW_W / 2, 178, '#c8cede', 'center');
       }
+      if (G.CLASS_IDS[this.selIdx] === 'bomber') {
+        this.text(c, 'X 3 MINAS   C ESCUDO DE BOMBAS   V BOMBA GRUDENTA', VIEW_W / 2, 178, '#ff8a3d', 'center');
+      }
       if (G.CLASS_IDS[this.selIdx] === 'percy') {
-        this.text(c, 'X TRIDENTE   C BARREIRA   V REDEMOINHO', VIEW_W / 2, 178, '#5aa7ff', 'center');
+        this.text(c, 'X TRIDENTE 3s   C BARREIRA   V REDEMOINHO', VIEW_W / 2, 178, '#5aa7ff', 'center');
       }
       if (G.CLASS_IDS[this.selIdx] === 'ninja') {
         this.text(c, 'X 5 ESTRELAS   C VELOCIDADE 10s   V VENENO', VIEW_W / 2, 178, '#7fd858', 'center');
       }
-      this.text(c, G.CLASS_IDS[this.selIdx] === 'guerreiro' ? 'C E V LIBERAM COM 6 E 10 ABATES (O F TEM RECARGA)'
+      this.text(c, G.CLASSES[G.CLASS_IDS[this.selIdx]].xEspera ? 'C E V LIBERAM COM 6 E 10 ABATES (O F TEM RECARGA)'
         : 'X, C E V LIBERAM COM 3, 6 E 10 ABATES (SO O F TEM RECARGA)', VIEW_W / 2, 188, '#8f96a8', 'center');
       this.text(c, 'SETAS ESCOLHEM   ENTER CONFIRMA   ESC VOLTA', VIEW_W / 2, 200, '#5c667e', 'center');
     }
@@ -1516,9 +1526,10 @@
         melee: ['INVESTIDA (X, SEGURE)', 'TORNADO (C)', 'RELAMPAGO (V)'],
         magic: ['TEMPESTADE DE RAIOS (X)', 'ESCUDO (C)', 'INFERNO (V)'],
         ninja: ['ESTRELAS NINJA (X)', 'VELOCIDADE (C)', 'VENENO (V)'],
-        percy: ['TRIDENTE (X)', 'BARREIRA (C)', 'REDEMOINHO (V)'] }[p.def.modo];
+        percy: ['TRIDENTE (X)', 'BARREIRA (C)', 'REDEMOINHO (V)'],
+        bomber: ['3 MINAS (X)', 'ESCUDO DE BOMBAS (C)', 'BOMBA GRUDENTA (V)'] }[p.def.modo];
       if (nomes) {
-        const xTxt = p.cls === 'guerreiro' ? (p.xCd === 0 ? 'PRONTO' : 'ESPERA 1s') : falta(p.spCd);
+        const xTxt = p.def.xEspera ? (p.xCd === 0 ? 'PRONTO' : 'ESPERA ' + Math.ceil(p.xCd / 60) + 's') : falta(p.spCd);
         this.text(c, nomes[0] + ': ' + xTxt, VIEW_W / 2, oy + mh + 52, '#7fd858', 'center');
         this.text(c, nomes[1] + ': ' + falta(p.spinCd), VIEW_W / 2 - 6, oy + mh + 64, '#b45cff', 'right');
         this.text(c, nomes[2] + ': ' + falta(p.goldCd), VIEW_W / 2 + 6, oy + mh + 64, '#ffd34d', 'left');

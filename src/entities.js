@@ -214,7 +214,6 @@
   const KN_DASH_SHORT = 64;                    // tapa: 4 blocos
   const KN_DASH_LONG = 400;                    // segurando: atravessa a sala ate a parede ou a borda
   const KN_DASH_MULT = 3;                      // carga cheia: 3x o dano da espada
-  const KN_X_CD = 60;                          // investida (X): sem abates, so 1 s de espera apos usar
   const KN_GIRO_VOLTA = 16;                    // quadros por volta de 360 graus
   const KN_GIRO_T = 420;                       // giro (C): 7 s girando e correndo atras dos inimigos
   const KN_GIRO_MULT = 2;                      // 2x o dano da espada, a cada volta
@@ -241,6 +240,20 @@
   const PC_TORNADO_RAIO = 56, PC_TORNADO_MULT = 4; // explosao final: 4x o tridente num raio de 3,5 blocos
   const PC_TSUNAMI_SPD = 3.2;                  // F: velocidade da onda, da esquerda para a direita
 
+  // bomber
+  const BM_Z_T = 20;                           // Z: quadros entre uma bomba e outra
+  const BM_ALCANCE = 56, BM_VOO = 20;          // bomba cai 3,5 blocos a frente em 1/3 s
+  const BM_MULT = 2, BM_RAIO = 18;             // bomba comum: 2x o dano da arma num raio de ~1 bloco
+  const BM_GRANDE_CADA = 10;                   // a cada 10 bombas, uma grande
+  const BM_GRANDE_MULT = 5, BM_GRANDE_RAIO = 44;
+  const BM_MINAS = 3;                          // X: 3 minas, uma por aperto, onde o bomber esta
+  const BM_MINA_ARMA = 30, BM_MINA_RAIO = 28, BM_MINA_MULT = 4;
+  const BM_ESCUDO_T = 420, BM_ESCUDO_N = 6;    // C: 6 bombas girando por 7 s
+  const BM_ESCUDO_R = 20, BM_ESCUDO_MULT = 3;
+  const BM_GRUDA_VOO = 20, BM_GRUDA_MOVE = 2;  // V: gruda no alvo e explode se ele andar 2 px
+  const BM_GRUDA_PVP = 4;                      // V no VS: 4x o dano, sem matar na hora
+  const BM_NUKE_QUEDA = 70;                    // F: quadros ate a bomba nuclear cair
+
   // elementos do mago, na ordem do ciclo
   const ELEMENTS = [
     { id: 'fogo', nome: 'FOGO', cor: 9, dmg: 2, vel: 2.2, pierce: 0, sprite: 'fireball' },
@@ -253,6 +266,7 @@
     guerreiro: {
       nome: 'GUERREIRO', arma: 'ESPADA', modo: 'melee',
       hp: 10, speed: 1.5, dmg: 1, dash: 1,
+      xEspera: 60,                           // investida (X): sem abates, so 1 s de espera apos usar
       desc: ['GOLPE EM ARCO DE 180 GRAUS', 'CORPO A CORPO, CURTO ALCANCE'],
       skill: 'BOLA DE FOGO'
     },
@@ -277,12 +291,19 @@
     percy: {
       nome: 'PERCY', arma: 'TRIDENTE', modo: 'percy',
       hp: 10, speed: 1.5, dmg: 1, dash: 1, alcance: 1.5,   // golpe da espada com 1,5x o alcance
+      xEspera: 180,                          // tridente (X): sem abates, so 3 s de espera apos arremessar
       desc: ['TRIDENTE EM ARCO, 1,5X O ALCANCE', 'PODERES DA AGUA'],
       skill: 'TSUNAMI'
+    },
+    bomber: {
+      nome: 'BOMBER', arma: 'BOMBAS', modo: 'bomber',
+      hp: 10, speed: 1.4, dmg: 1, dash: 1,
+      desc: ['BOMBAS EM ARCO, A 10a E GRANDE', 'MINAS, ESCUDO E BOMBA GRUDENTA'],
+      skill: 'BOMBA NUCLEAR'
     }
   };
   G.CLASSES = CLASSES;
-  G.CLASS_IDS = ['guerreiro', 'arqueiro', 'mago', 'ninja', 'percy'];
+  G.CLASS_IDS = ['guerreiro', 'arqueiro', 'mago', 'ninja', 'percy', 'bomber'];
   // loja (menu do ESC): cada item se compra uma vez, com as moedas do proprio jogador
   const LOJA = [
     { id: 'cura', preco: 100, nome: 'CURA AUTOMATICA', desc: 'MEIO CORACAO A CADA 10 S' },
@@ -325,10 +346,12 @@
       this.dashLeft = 0;               // investida (X): distancia que falta
       this.dashDmg = 0;
       this.dashCheia = false;
-      this.xCd = 0;                    // guerreiro: espera apos a investida (X), em quadros
-      if (this.cls === 'guerreiro') this.spCd = 0;   // a investida nao depende de abates
+      this.xCd = 0;                    // espera apos o X nas classes sem abates no X (def.xEspera), em quadros
+      if (this.def.xEspera) this.spCd = 0;
       this.turbo = 0;                  // ninja: quadros de velocidade extra (C)
       this.tridenteT = 0;              // Percy: quadros ate o tridente arremessado voltar (X)
+      this.bombasZ = 0;                // bomber: bombas lancadas no Z (a 10a e grande)
+      this.minas = 0;                  // bomber: minas que ainda pode plantar (X)
       this.compras = {};               // itens da loja ja comprados (id -> true)
       this.curaT = 0;
       this.menu = null;                // menu do ESC aberto: { aba, sel }
@@ -478,6 +501,9 @@
       } else if (this.def.modo === 'bow') {
         this.atk = BOW_TIME;
         Sound.play('bow');
+      } else if (this.def.modo === 'bomber') {
+        this.atk = BM_Z_T;
+        this.lancaBomba(g);
       } else {                         // mago: varre o cajado como a espada e solta a magia
         this.atk = ATK_TIME;
         this.hitSet.clear();
@@ -716,14 +742,64 @@
       g.say('ESTRELAS NINJA!', 50);
     }
 
+    /* ---------- bomber: Z bombas, X minas, C escudo de bombas, V bomba grudenta ---------- */
+
+    lancaBomba(g) {
+      this.bombasZ++;
+      const grande = this.bombasZ % BM_GRANDE_CADA === 0;
+      const v = DIR_VEC[this.dir], alc = grande ? BM_ALCANCE + 16 : BM_ALCANCE;
+      const m = this.muzzle(4);
+      const dmg = this.danoArma() * (grande ? BM_GRANDE_MULT : BM_MULT);
+      g.addEnt(new BombaJogador(m[0], m[1], this.cx + v[0] * alc, this.cy + v[1] * alc, dmg,
+        grande ? BM_GRANDE_RAIO : BM_RAIO, grande));
+      Sound.play(grande ? 'shootbig' : 'swing');
+      if (grande) g.say('BOMBA GRANDE!', 50);
+    }
+
+    updateBomber(g, i) {
+      if (i.hit('special')) {
+        if (this.minas === 0) {                      // primeira mina: gasta o especial e ganha 3
+          if (this.spCd > 0) this.bloqueado(g, this.spCd);
+          else { this.minas = BM_MINAS; this.spCd = this.spMax; }
+        }
+        if (this.minas > 0) {
+          this.minas--;
+          g.addEnt(new Mina(this.cx, this.y + this.h - 2, this.dano() * BM_MINA_MULT));
+          Sound.play('key');
+          g.say('MINA ' + (BM_MINAS - this.minas) + '/' + BM_MINAS, 40);
+        }
+      }
+      if (i.hit('spin')) {
+        if (this.spinCd > 0) this.bloqueado(g, this.spinCd);
+        else {
+          this.spinCd = this.spinMax;
+          g.addEnt(new EscudoBombas(this, this.dano() * BM_ESCUDO_MULT));
+          Sound.play('spin');
+          g.say('ESCUDO DE BOMBAS!', 60);
+        }
+      }
+      if (i.hit('gold')) {
+        if (this.goldCd > 0) this.bloqueado(g, this.goldCd);
+        else {
+          const alvo = this.proximoAlvo(g, new Set());
+          if (!alvo) { Sound.play('blocked'); g.say('NENHUM INIMIGO', 40); }
+          else {
+            this.goldCd = this.goldMax;
+            g.addEnt(new BombaGrudenta(this.cx, this.cy - 4, alvo, this.dano() * BM_GRUDA_PVP));
+            Sound.play('swing');
+            g.say('BOMBA GRUDENTA!', 60);
+          }
+        }
+      }
+    }
+
     /* ---------- Percy: X tridente, C barreira, V redemoinho ---------- */
 
     updatePercy(g, i) {
       if (i.hit('special')) {
-        if (this.tridenteT > 0) Sound.play('blocked');
-        else if (this.spCd > 0) this.bloqueado(g, this.spCd);
+        if (this.xCd > 0) Sound.play('blocked');
         else {
-          this.spCd = this.spMax;
+          this.xCd = this.def.xEspera;
           this.tridenteT = PC_TRI_IDA + PC_TRI_VOLTA;
           const v = DIR_VEC[this.dir];
           g.addEnt(new TridenteVoo(this, v[0], v[1], this.dano() * PC_TRI_MULT));
@@ -799,7 +875,7 @@
       this.dashDmg = this.dano() * (cheia ? KN_DASH_MULT : 1);
       this.dashCheia = cheia;
       this.hitSet.clear();
-      this.xCd = KN_X_CD;
+      this.xCd = this.def.xEspera;
       this.inv = Math.max(this.inv, KN_INVULNERAVEL);
       Sound.play(cheia ? 'shootbig' : 'swing');
       g.shake(cheia ? 6 : 3);
@@ -1151,7 +1227,8 @@
 
       if (this.atk > 0) {
         this.atk--;
-        if (this.def.modo === 'bow') return;   // so recuperacao; o tiro sai ao soltar
+        // arco: so recuperacao, o tiro sai ao soltar. Bomber: a bomba ja saiu no aperto
+        if (this.def.modo === 'bow' || this.def.modo === 'bomber') return;
         if (this.def.modo === 'magic' && this.atk === MAGIA_SOLTA) { this.lancarMagia(g); Sound.play('cast'); }
         if (this.atk <= ATK_WIND + ATK_SWING && this.atk > ATK_REC) {
           this.swingHit(g);
@@ -1174,6 +1251,8 @@
         this.updateNinja(g, i);
       } else if (this.def.modo === 'percy') {
         this.updatePercy(g, i);
+      } else if (this.def.modo === 'bomber') {
+        this.updateBomber(g, i);
       }
 
       // movimento
@@ -1261,6 +1340,14 @@
       if (this.def.modo === 'magic') {        // mago: meteoro cai no meio da sala
         g.addEnt(new Meteoro(G.VIEW_W / 2, G.VIEW_H / 2));
         g.particles.burst(this.cx, this.cy - 6, 20, 9, 2, 22, 2);
+        Sound.play('cast');
+        g.say(this.def.skill + '!', 70);
+        return;
+      }
+
+      if (this.def.modo === 'bomber') {       // bomber: bomba nuclear cai no meio da sala
+        g.addEnt(new Nuclear(G.VIEW_W / 2, G.VIEW_H / 2));
+        g.particles.burst(this.cx, this.cy - 6, 14, 9, 1.6, 18);
         Sound.play('cast');
         g.say(this.def.skill + '!', 70);
         return;
@@ -1375,10 +1462,11 @@
       // so virado para baixo a espada passa na frente do corpo; nas outras
       // direcoes lamina e rastro ficam atras do heroi
       const naFrente = this.dir === 'down';
-      const melee = this.def.modo !== 'bow';     // espada e cajado giram em arco
+      const modo = this.def.modo;
+      const melee = modo !== 'bow' && modo !== 'bomber';   // espada, cajado, katana e tridente giram em arco
       const temArma = this.atk > 0 || this.charging || this.spCharging || this.spin > 0 || this.lamina !== null, temRastro = melee && this.trailN > 0;
       const arma = () => {
-        if (!melee) { if (temArma) this.drawArma(ctx, S); return; }
+        if (!melee) { if (temArma && modo === 'bow') this.drawArma(ctx, S); return; }
         if (temArma) this.drawBlade(ctx, S, true);
         else if (temRastro) this.drawBlade(ctx, S, false);
       };
@@ -3745,6 +3833,207 @@
       ctx.fillStyle = 'rgba(0,0,0,0.25)';
       ctx.fillRect(cx - 3, cy + 3, 7, 2);
       ctx.drawImage(S.bomba[(this.anim >> 2) & 1], cx - 4, (cy - 5 - this.alt) | 0);
+    }
+  }
+
+  /* ================= bomber ================= */
+
+  // explosao das bombas do bomber: dano em todos os alvos no raio (nunca no proprio bomber)
+  function explosao(g, x, y, r, dmg, dono) {
+    for (const e of g.alvos(dono)) {
+      if (e.dead || G.dist(x, y, e.cx, e.cy) > r + Math.max(e.w, e.h) / 2) continue;
+      const a = Math.atan2(e.cy - y, e.cx - x);
+      G.ferir(g, e, dmg, Math.cos(a), Math.sin(a), dono);
+    }
+    g.particles.burst(x, y, 10 + (r >> 1), 9, 1 + r / 14, 20, 2);
+    g.particles.burst(x, y, 6 + (r >> 2), 5, 1.2, 26);
+    g.shake(Math.min(10, 2 + r / 6));
+    Sound.play('fire');
+  }
+
+  // bomba do Z: voa em arco e explode ao cair. A grande tem o dobro do tamanho
+  class BombaJogador extends Ent {
+    constructor(x0, y0, x1, y1, dmg, raio, grande) {
+      super(x0 - 4, y0 - 4, 8, 8);
+      this.x0 = x0; this.y0 = y0;
+      this.x1 = G.clamp(x1, 8, VIEW_W - 8); this.y1 = G.clamp(y1, 8, VIEW_H - 8);
+      this.dmg = dmg; this.raio = raio; this.grande = grande;
+      this.t = 0; this.voo = grande ? BM_VOO + 6 : BM_VOO; this.alt = 0;
+      this.friendly = true;
+    }
+    update(g) {
+      this.anim++;
+      const k = ++this.t / this.voo;
+      this.x = G.lerp(this.x0, this.x1, k) - 4; this.y = G.lerp(this.y0, this.y1, k) - 4;
+      this.alt = Math.sin(k * Math.PI) * (this.grande ? 22 : 14);
+      if (this.t < this.voo) return;
+      this.dead = true;
+      explosao(g, this.cx, this.cy, this.raio, this.dmg, this.dono);
+      if (this.grande) { g.flashT = Math.max(g.flashT, 6); Sound.play('nova'); }
+    }
+    draw(ctx, S) {
+      const sc = this.grande ? 2 : 1, cx = this.cx | 0, cy = this.cy | 0;
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(cx - 3 * sc, cy + 3, 7 * sc, 2);
+      ctx.drawImage(S.bomba[(this.anim >> 2) & 1], cx - 4 * sc, (cy - 5 * sc - this.alt) | 0, 8 * sc, 9 * sc);
+    }
+  }
+
+  // mina (X): arma em 0,5 s e explode quando um alvo pisa nela
+  class Mina extends Ent {
+    constructor(x, y, dmg) {
+      super(x - 4, y - 3, 8, 6);
+      this.dmg = dmg;
+      this.arma = BM_MINA_ARMA;
+    }
+    update(g) {
+      this.anim++;
+      if (this.arma > 0) { this.arma--; return; }
+      for (const e of g.alvos(this.dono)) {
+        if (e.dead || !G.overlap(this.x - 2, this.y - 2, this.w + 4, this.h + 4, e.x, e.y, e.w, e.h)) continue;
+        this.dead = true;
+        explosao(g, this.cx, this.cy, BM_MINA_RAIO, this.dmg, this.dono);
+        return;
+      }
+    }
+    draw(ctx, S, tick) {
+      const x = this.x | 0, y = this.y | 0;
+      ctx.fillStyle = '#23232e'; ctx.fillRect(x, y + 2, 8, 4);
+      ctx.fillStyle = '#5c667e'; ctx.fillRect(x + 1, y + 1, 6, 2);
+      ctx.fillStyle = this.arma > 0 ? '#5c667e' : (tick & 16) ? '#e33b4e' : '#6a1f24';
+      ctx.fillRect(x + 3, y, 2, 1);
+    }
+  }
+
+  // escudo de bombas (C): giram em volta do bomber; cada uma explode ao tocar um alvo,
+  // desfaz tiros inimigos, e as que sobrarem explodem juntas depois de 7 s
+  class EscudoBombas extends Ent {
+    constructor(dono, dmg) {
+      super(dono.x, dono.y, 0, 0);
+      this.dono = dono; this.dmg = dmg;
+      this.t = BM_ESCUDO_T;
+      this.ang = 0;
+      this.vivas = new Array(BM_ESCUDO_N).fill(true);
+    }
+    pos(k) {
+      const a = this.ang + (k / BM_ESCUDO_N) * Math.PI * 2, d = this.dono;
+      return [d.cx + Math.cos(a) * BM_ESCUDO_R, d.cy - 2 + Math.sin(a) * BM_ESCUDO_R * 0.8];
+    }
+    update(g) {
+      const d = this.dono;
+      if (d.dead) { this.dead = true; return; }
+      this.ang += 0.09;
+      this.t--;
+      this.x = d.x; this.y = d.y + 1;               // desenhada junto do bomber
+      const alvos = g.alvos(d);
+      for (let k = 0; k < BM_ESCUDO_N; k++) {
+        if (!this.vivas[k]) continue;
+        const [bx, by] = this.pos(k);
+        if (this.t <= 0) { this.vivas[k] = false; explosao(g, bx, by, BM_RAIO, this.dmg, d); continue; }
+        for (const e of alvos) {
+          if (e.dead || !G.overlap(bx - 4, by - 4, 8, 8, e.x, e.y, e.w, e.h)) continue;
+          this.vivas[k] = false;
+          explosao(g, bx, by, BM_RAIO, this.dmg, d);
+          break;
+        }
+        if (!this.vivas[k]) continue;
+        for (const s of g.ents) {
+          if (!s.shot || s.friendly || s.dead || !G.overlap(bx - 4, by - 4, 8, 8, s.x, s.y, s.w, s.h)) continue;
+          s.dead = true;
+          g.particles.burst(s.cx, s.cy, 5, 5, 1.2, 10);
+        }
+      }
+      if (!this.vivas.some(Boolean)) this.dead = true;
+    }
+    draw(ctx, S, tick) {
+      const rapido = this.t < 90;                     // pavio acelera no fim
+      for (let k = 0; k < BM_ESCUDO_N; k++) {
+        if (!this.vivas[k]) continue;
+        const [bx, by] = this.pos(k);
+        ctx.drawImage(S.bomba[(rapido ? tick >> 1 : tick >> 3) & 1], (bx - 4) | 0, (by - 5) | 0);
+      }
+    }
+  }
+
+  // bomba grudenta (V): voa ate o alvo mais proximo e gruda nele; se ele andar, explode.
+  // Monstro morre na hora, chefe leva 1/3 da vida, oponente no VS leva BM_GRUDA_PVP x o dano
+  class BombaGrudenta extends Ent {
+    constructor(x0, y0, alvo, dmgPvp) {
+      super(x0 - 4, y0 - 4, 8, 8);
+      this.x0 = x0; this.y0 = y0; this.alvo = alvo; this.dmgPvp = dmgPvp;
+      this.t = 0; this.alt = 0;
+      this.grudada = false; this.sx = 0; this.sy = 0;
+    }
+    update(g) {
+      const e = this.alvo;
+      this.anim++;
+      if (e.dead) { this.dead = true; return; }
+      if (!this.grudada) {
+        const k = ++this.t / BM_GRUDA_VOO;
+        this.x = G.lerp(this.x0, e.cx, k) - 4; this.y = G.lerp(this.y0, e.cy, k) - 4;
+        this.alt = Math.sin(k * Math.PI) * 16;
+        if (this.t >= BM_GRUDA_VOO) {
+          this.grudada = true; this.sx = e.x; this.sy = e.y;
+          Sound.play('key');
+          g.particles.burst(e.cx, e.y, 6, 2, 1, 12);
+        }
+        return;
+      }
+      this.x = e.cx - 4; this.y = e.y + e.h;          // desenhada depois do alvo
+      if (Math.hypot(e.x - this.sx, e.y - this.sy) < BM_GRUDA_MOVE) return;
+      this.dead = true;
+      const dmg = e instanceof Player ? this.dmgPvp : e.boss ? Math.max(1, Math.ceil(e.maxhp / 3)) : 999;
+      G.ferirBruto(g, e, dmg, 0, -1, this.dono);
+      g.particles.burst(e.cx, e.cy, 26, 9, 2.6, 24, 2);
+      g.particles.burst(e.cx, e.cy, 10, 1, 1.6, 20);
+      g.shake(8);
+      Sound.play('nova');
+    }
+    draw(ctx, S, tick) {
+      if (!this.grudada) {
+        ctx.drawImage(S.bomba[(this.anim >> 2) & 1], (this.cx - 4) | 0, (this.cy - 5 - this.alt) | 0);
+        return;
+      }
+      const e = this.alvo;
+      ctx.drawImage(S.bomba[(tick >> 2) & 1], (e.cx - 4) | 0, (e.y - 7) | 0);
+      if (tick & 8) { ctx.fillStyle = '#e33b4e'; ctx.fillRect((e.cx - 1) | 0, (e.y - 4) | 0, 2, 2); }
+    }
+  }
+
+  // bomba nuclear (F): cai do alto da tela no meio da sala; no impacto a tela fica branca
+  // e volta com fade. Monstros morrem, chefes levam 1/3 e o oponente no VS leva PVP_F onde estiver
+  class Nuclear extends Ent {
+    constructor(tx, ty) {
+      super(tx - 8, -48, 16, 16);
+      this.tx = tx; this.ty = ty;
+      this.t = 0;
+    }
+    update(g) {
+      this.t++;
+      const k = this.t / BM_NUKE_QUEDA;
+      this.y = G.lerp(-48, this.ty, k * k) - 8;
+      if ((this.t & 15) === 0) Sound.play('fire');
+      if (this.t < BM_NUKE_QUEDA) return;
+      this.dead = true;
+      g.novaBlast(this.tx, this.ty, this.dono, Infinity);
+      for (let n = 0; n < 60; n++) {                   // cogumelo subindo
+        g.particles.spawn(this.tx + (Math.random() - 0.5) * 16, this.ty, (Math.random() - 0.5) * 1.6,
+          -1.5 - Math.random() * 2.5, 30 + Math.random() * 30, Math.random() < 0.5 ? 9 : 5, 2, 0);
+      }
+      g.telaBranca();
+      g.shake(18);
+    }
+    draw(ctx, S, tick) {
+      const k = this.t / BM_NUKE_QUEDA;
+      const r = 6 + k * 30;                              // sombra crescendo no ponto de impacto
+      ctx.fillStyle = 'rgba(0,0,0,' + (0.15 + k * 0.35).toFixed(2) + ')';
+      ctx.fillRect((this.tx - r) | 0, (this.ty - r * 0.35) | 0, (r * 2) | 0, Math.max(1, (r * 0.7) | 0));
+      if ((tick & 8) && k > 0.3) {                       // mira piscando
+        ctx.fillStyle = '#e33b4e';
+        ctx.fillRect((this.tx - 10) | 0, this.ty | 0, 20, 1);
+        ctx.fillRect(this.tx | 0, (this.ty - 6) | 0, 1, 12);
+      }
+      ctx.drawImage(S.bomba[(tick >> 2) & 1], (this.tx - 16) | 0, (this.y - 20) | 0, 32, 36);
     }
   }
 

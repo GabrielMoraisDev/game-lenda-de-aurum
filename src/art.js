@@ -1464,6 +1464,13 @@
       trim: '#2f6fb8', boot: '#3a4a6b'
     };
     const percyOpt = { coil: true, hairD: '#2e2c3a' };
+
+    // bomber: gorro de aviador marrom, roupa verde-oliva e cinto amarelo
+    const bomberPal = {
+      skin: '#e3b184', hair: '#c8541a', body: '#6b7a3a', bodyD: '#4f5a2a',
+      trim: '#ffd34d', boot: '#2a2418'
+    };
+    const bomberOpt = { cap: '#5c3a1a', scarf: true };
     const goblin = charSet(
       { skin: '#6fae3f', hair: '#2f4a1c', body: '#8a5a2b', bodyD: '#6b4a2a', trim: '#4a3018', boot: '#3c2a17' },
       { ears: true, mouth: '#2a1010' }
@@ -1546,7 +1553,8 @@
         arqueiro: { walk: charSet(archerPal, archerOpt), atk: charSet(archerPal, archerOpt, 'atk') },
         mago: { walk: charSet(magePal, mageOpt), atk: charSet(magePal, mageOpt, 'atk') },
         ninja: { walk: charSet(ninjaPal, ninjaOpt), atk: charSet(ninjaPal, ninjaOpt, 'atk') },
-        percy: { walk: charSet(percyPal, percyOpt), atk: charSet(percyPal, percyOpt, 'atk') }
+        percy: { walk: charSet(percyPal, percyOpt), atk: charSet(percyPal, percyOpt, 'atk') },
+        bomber: { walk: charSet(bomberPal, bomberOpt), atk: charSet(bomberPal, bomberOpt, 'atk') }
       },
       katana: buildKatanas(), estrela: estrelaFrames(), tridente: buildTridentes(),
       blade: buildBlades(), bladeSteps: BLADE_STEPS, bladePivot: BLADE_PIVOT,
