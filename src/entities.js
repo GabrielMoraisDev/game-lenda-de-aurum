@@ -232,6 +232,15 @@
   const NJ_VENENO_T = 360, NJ_VENENO_TICK = 60; // V: nevoa na sala toda por 6 s, 1 de dano por segundo
   const NJ_BOMBA_VOO = 24;                     // F: quadros ate o explosivo cair no alvo
 
+  // Percy
+  const PC_TRI_IDA = 60, PC_TRI_VOLTA = 60;    // X: tridente vai ate a borda e volta em 2 s
+  const PC_TRI_MULT = 2;                       // 2x o dano do tridente
+  const PC_BARREIRA_T = 480, PC_BARREIRA_N = 5; // C: parede de agua de 5 blocos por 8 s
+  const PC_TORNADO_T = 480;                    // V: redemoinho puxa todos para o centro por 8 s
+  const PC_PUXA = 1.2, PC_PUXA_CHEFE = 0.45;   // px por quadro puxados para o centro
+  const PC_TORNADO_RAIO = 56, PC_TORNADO_MULT = 4; // explosao final: 4x o tridente num raio de 3,5 blocos
+  const PC_TSUNAMI_SPD = 3.2;                  // F: velocidade da onda, da esquerda para a direita
+
   // elementos do mago, na ordem do ciclo
   const ELEMENTS = [
     { id: 'fogo', nome: 'FOGO', cor: 9, dmg: 2, vel: 2.2, pierce: 0, sprite: 'fireball' },
@@ -264,10 +273,26 @@
       hp: 10, speed: 1.6, dmg: 2, dash: 1,   // katana: 2x o dano da espada
       desc: ['KATANA EM ARCO, 2X O DANO DA ESPADA', 'ESTRELAS, VELOCIDADE E VENENO'],
       skill: 'EXPLOSIVOS'
+    },
+    percy: {
+      nome: 'PERCY', arma: 'TRIDENTE', modo: 'percy',
+      hp: 10, speed: 1.5, dmg: 1, dash: 1, alcance: 1.5,   // golpe da espada com 1,5x o alcance
+      desc: ['TRIDENTE EM ARCO, 1,5X O ALCANCE', 'PODERES DA AGUA'],
+      skill: 'TSUNAMI'
     }
   };
   G.CLASSES = CLASSES;
-  G.CLASS_IDS = ['guerreiro', 'arqueiro', 'mago', 'ninja'];
+  G.CLASS_IDS = ['guerreiro', 'arqueiro', 'mago', 'ninja', 'percy'];
+  // loja (menu do ESC): cada item se compra uma vez, com as moedas do proprio jogador
+  const LOJA = [
+    { id: 'cura', preco: 100, nome: 'CURA AUTOMATICA', desc: 'MEIO CORACAO A CADA 10 S' },
+    { id: 'arma', preco: 200, nome: 'ARMA PRINCIPAL +1', desc: 'MAIS DANO NO ATAQUE (J)' },
+    { id: 'vel', preco: 300, nome: 'VELOCIDADE +30%', desc: 'ANDA 30% MAIS RAPIDO' },
+    { id: 'especial', preco: 400, nome: 'DEMAIS ARMAS +1', desc: 'MAIS DANO NO X, C E V' }
+  ];
+  G.LOJA = LOJA;
+  const CURA_T = 600;                          // cura automatica: meio coracao a cada 10 s
+  const VEL_MULT = 1.3;
   const FIRE_CD = 3600, CAST_TIME = 20;   // 60 s de recarga a 60 fps
   const ROLL_TIME = 15, ROLL_CD = 24;
 
@@ -303,6 +328,10 @@
       this.xCd = 0;                    // guerreiro: espera apos a investida (X), em quadros
       if (this.cls === 'guerreiro') this.spCd = 0;   // a investida nao depende de abates
       this.turbo = 0;                  // ninja: quadros de velocidade extra (C)
+      this.tridenteT = 0;              // Percy: quadros ate o tridente arremessado voltar (X)
+      this.compras = {};               // itens da loja ja comprados (id -> true)
+      this.curaT = 0;
+      this.menu = null;                // menu do ESC aberto: { aba, sel }
       this.giro = 0;                   // giro (C): quadros restantes
       this.giroAng = 0;
       this.rush = null;                // investida relampago (V)
@@ -381,8 +410,9 @@
       const ang = this.swingAngle();
       const ca = Math.cos(ang), sa = Math.sin(ang);
       const hx = this.handX(), hy = this.handY();
+      const alcance = this.def.alcance || 1;
       for (let i = 0; i < BLADE_HITS.length; i++) {
-        const d = BLADE_HITS[i], b = this._boxes[i];
+        const d = BLADE_HITS[i] * alcance, b = this._boxes[i];
         b.x = hx + ca * d - b.w / 2;
         b.y = hy + sa * d - b.h / 2;
       }
@@ -395,7 +425,16 @@
       return b;
     }
 
-    dano() { return this.def.dmg * this.sword; }
+    // dano base das habilidades (X, C, V); o item 'especial' da loja soma 1
+    dano() { return this.def.dmg * this.sword + (this.compras.especial ? 1 : 0); }
+    // dano do ataque principal (J); o item 'arma' da loja soma 1
+    danoArma() { return this.def.dmg * this.sword + (this.compras.arma ? 1 : 0); }
+    velBase() { return this.def.speed * (this.compras.vel ? VEL_MULT : 1); }
+
+    compra(id) {
+      this.compras[id] = true;
+      if (id === 'vel' && this.turbo === 0) this.speed = this.velBase();
+    }
 
     // cada abate conta para liberar X, C e V e adianta a recarga do F
     abateu() {
@@ -431,7 +470,7 @@
     }
 
     startAttack(g) {
-      if (this.def.modo === 'melee' || this.def.modo === 'ninja') {
+      if (this.def.modo === 'melee' || this.def.modo === 'ninja' || this.def.modo === 'percy') {
         this.atk = ATK_TIME;
         this.hitSet.clear();
         Sound.play('swing');
@@ -642,7 +681,7 @@
         else {
           this.spinCd = this.spinMax;
           this.turbo = NJ_TURBO_T;
-          this.speed = NJ_TURBO_SPD;
+          this.speed = NJ_TURBO_SPD * (this.compras.vel ? VEL_MULT : 1);
           g.particles.burst(this.cx, this.cy, 16, 5, 2, 18);
           Sound.play('spin');
           g.say('PASSO DO VENTO!', 60);
@@ -675,6 +714,43 @@
       Sound.play('volley');
       g.particles.burst(m[0], m[1], 10, 5, 1.8, 14);
       g.say('ESTRELAS NINJA!', 50);
+    }
+
+    /* ---------- Percy: X tridente, C barreira, V redemoinho ---------- */
+
+    updatePercy(g, i) {
+      if (i.hit('special')) {
+        if (this.tridenteT > 0) Sound.play('blocked');
+        else if (this.spCd > 0) this.bloqueado(g, this.spCd);
+        else {
+          this.spCd = this.spMax;
+          this.tridenteT = PC_TRI_IDA + PC_TRI_VOLTA;
+          const v = DIR_VEC[this.dir];
+          g.addEnt(new TridenteVoo(this, v[0], v[1], this.dano() * PC_TRI_MULT));
+          Sound.play('shootbig');
+          g.shake(3);
+          g.say('TRIDENTE!', 50);
+        }
+      }
+      if (i.hit('spin')) {
+        if (this.spinCd > 0) this.bloqueado(g, this.spinCd);
+        else {
+          this.spinCd = this.spinMax;
+          g.addEnt(new BarreiraAgua(this));
+          Sound.play('wave');
+          g.say('BARREIRA DE AGUA!', 60);
+        }
+      }
+      if (i.hit('gold')) {
+        if (this.goldCd > 0) this.bloqueado(g, this.goldCd);
+        else {
+          this.goldCd = this.goldMax;
+          g.addEnt(new RedemoinhoAgua(VIEW_W / 2, VIEW_H / 2, this.dano() * PC_TORNADO_MULT));
+          Sound.play('spin');
+          g.shake(4);
+          g.say('REDEMOINHO!', 60);
+        }
+      }
     }
 
     /* ---------- guerreiro: X investida, C giro, V investida relampago ---------- */
@@ -788,7 +864,7 @@
       if (alvo) {
         const dx = alvo.cx - this.cx, dy = alvo.cy - this.cy, d = Math.hypot(dx, dy);
         if (d > 2) {
-          const sp = Math.min(d, this.def.speed * 2);
+          const sp = Math.min(d, this.velBase() * 2);
           // nao passa da borda: senao troca de sala no meio do golpe
           const nx = G.clamp(this.x + (dx / d) * sp, 1, G.VIEW_W - this.w - 1);
           const ny = G.clamp(this.y + (dy / d) * sp, 1, G.VIEW_H - this.h - 1);
@@ -913,7 +989,7 @@
     soltarFlecha(g) {
       const t = Math.min(1, this.charge / ATK_CHARGE_MAX);
       const cheia = this.lancarFlecha(g, t, {
-        dmg: this.dano() * (t >= 0.85 ? 2 : 1),
+        dmg: this.danoArma() * (t >= 0.85 ? 2 : 1),
         range: ARROW_RANGE[0] + (ARROW_RANGE[1] - ARROW_RANGE[0]) * t,
         empurrao: t >= 0.85 ? 'total' : 'triplo'
       });
@@ -977,7 +1053,7 @@
       const e = this.elemento();
       const v = DIR_VEC[this.dir];
       const m = this.muzzle(12);
-      const sh = new Shot(m[0] - 4, m[1] - 4, v[0] * e.vel, v[1] * e.vel, e.sprite, e.dmg * this.sword, this.dir);
+      const sh = new Shot(m[0] - 4, m[1] - 4, v[0] * e.vel, v[1] * e.vel, e.sprite, e.dmg * this.sword + (this.compras.arma ? 1 : 0), this.dir);
       sh.friendly = true;
       sh.pierce = e.pierce;
       sh.elem = e;
@@ -994,7 +1070,15 @@
       if (this.rollCd > 0) this.rollCd--;
       if (this.fireCd > 0) this.fireCd--;   // so o F tem recarga por tempo
       if (this.xCd > 0) this.xCd--;
-      if (this.turbo > 0 && --this.turbo === 0) this.speed = this.def.speed;
+      if (this.tridenteT > 0) this.tridenteT--;
+      if (this.turbo > 0 && --this.turbo === 0) this.speed = this.velBase();
+      if (this.compras.cura && ++this.curaT >= CURA_T) {   // loja: cura automatica
+        this.curaT = 0;
+        if (this.hp < this.maxhp) {
+          this.heal(1);
+          g.particles.burst(this.cx, this.cy - 4, 6, 3, 1, 16);
+        }
+      }
       if (this.turbo > 0 && (g.tick & 3) === 0) {
         g.particles.spawn(this.cx + (Math.random() - 0.5) * 6, this.y + this.h, 0, -0.2, 10, 5, 1, 0);
       }
@@ -1071,9 +1155,9 @@
         if (this.def.modo === 'magic' && this.atk === MAGIA_SOLTA) { this.lancarMagia(g); Sound.play('cast'); }
         if (this.atk <= ATK_WIND + ATK_SWING && this.atk > ATK_REC) {
           this.swingHit(g);
-          const ang = this.swingAngle();
+          const ang = this.swingAngle(), ponta = 21 * (this.def.alcance || 1);
           this.pushTrail(ang);             // eco novo na posicao atual da lamina
-          g.particles.spawn(this.handX() + Math.cos(ang) * 21, this.handY() + Math.sin(ang) * 21,
+          g.particles.spawn(this.handX() + Math.cos(ang) * ponta, this.handY() + Math.sin(ang) * ponta,
             0, 0, 8, 0, 1, 0);
         }
         return;
@@ -1088,6 +1172,8 @@
         if (this.golpeChao) return;
       } else if (this.def.modo === 'ninja') {
         this.updateNinja(g, i);
+      } else if (this.def.modo === 'percy') {
+        this.updatePercy(g, i);
       }
 
       // movimento
@@ -1109,16 +1195,18 @@
       }
 
       if (i.hit('fire') && this.fireCd === 0) { this.castFire(g); return; }
-      if (i.hit('attack') && this.def.modo !== 'bow' && !this.spCharging) this.startAttack(g);
+      // o Percy fica sem o tridente enquanto ele esta arremessado
+      if (i.hit('attack') && this.def.modo !== 'bow' && !this.spCharging && this.tridenteT === 0) this.startAttack(g);
       else if (i.hit('roll') && this.rollCd === 0) {
         this.roll = ROLL_TIME; this.rollCd = ROLL_CD; this.inv = Math.max(this.inv, 12);
         Sound.play('swing');
       }
     }
 
+    // sem mult e o ataque principal (J); com mult e um especial (giro do guerreiro)
     swingHit(g, mult) {
       const boxes = this.bladeBoxes();
-      const dmg = this.dano() * (mult || 1);
+      const dmg = mult ? this.dano() * mult : this.danoArma();
       const ang = this.swingAngle();
       const kx = Math.cos(ang), ky = Math.sin(ang);
       const TT = T();
@@ -1174,6 +1262,15 @@
         g.addEnt(new Meteoro(G.VIEW_W / 2, G.VIEW_H / 2));
         g.particles.burst(this.cx, this.cy - 6, 20, 9, 2, 22, 2);
         Sound.play('cast');
+        g.say(this.def.skill + '!', 70);
+        return;
+      }
+
+      if (this.def.modo === 'percy') {        // Percy: tsunami varre a sala da esquerda para a direita
+        g.addEnt(new Tsunami());
+        g.particles.burst(this.cx, this.cy, 20, 4, 2.2, 22, 2);
+        g.shake(6);
+        Sound.play('wave');
         g.say(this.def.skill + '!', 70);
         return;
       }
@@ -1238,10 +1335,11 @@
       ctx.drawImage(set[idx], (this.handX() - piv) | 0, (this.handY() - piv) | 0);
     }
 
-    // espada do guerreiro, cajado do mago ou katana do ninja, na inclinacao do golpe, com rastro
+    // espada do guerreiro, cajado do mago, katana do ninja ou tridente do Percy, na inclinacao do golpe, com rastro
     drawBlade(ctx, S, withBlade) {
-      const set = this.def.modo === 'magic' ? S.staff : this.def.modo === 'ninja' ? S.katana : S.blade;
-      const n = S.bladeSteps, step = (Math.PI * 2) / n, piv = S.bladePivot;
+      const modo = this.def.modo;
+      const set = modo === 'magic' ? S.staff : modo === 'ninja' ? S.katana : modo === 'percy' ? S.tridente : S.blade;
+      const n = S.bladeSteps, step = (Math.PI * 2) / n, piv = set.pivot || S.bladePivot;
       // o canvas da lamina e centrado no pivo: alinha o pivo com a mao
       const hx = (this.handX() - piv) | 0, hy = (this.handY() - piv) | 0;
       const idx = (a) => ((Math.round(a / step) % n) + n) % n;
@@ -3647,6 +3745,241 @@
       ctx.fillStyle = 'rgba(0,0,0,0.25)';
       ctx.fillRect(cx - 3, cy + 3, 7, 2);
       ctx.drawImage(S.bomba[(this.anim >> 2) & 1], cx - 4, (cy - 5 - this.alt) | 0);
+    }
+  }
+
+  /* ================= Percy ================= */
+
+  // tridente arremessado (X): vai ate a borda da sala e volta para a mao do Percy em 2 s,
+  // atravessando paredes e acertando cada alvo uma vez na ida e outra na volta
+  class TridenteVoo extends Ent {
+    constructor(dono, vx, vy, dmg) {
+      super(dono.cx - 6, dono.cy - 6, 12, 12);
+      this.dono = dono; this.vx = vx; this.vy = vy; this.dmg = dmg;
+      this.ox = dono.cx; this.oy = dono.cy - 3;
+      const lim = (p, v, max) => (v > 0 ? (max - p) / v : v < 0 ? -p / v : Infinity);
+      this.alc = Math.max(16, Math.min(lim(this.ox, vx, VIEW_W), lim(this.oy, vy, VIEW_H)));
+      this.px = this.ox; this.py = this.oy; this.fx = 0; this.fy = 0;
+      this.t = 0;
+      this.friendly = true; this.shot = true;
+      this.atingidos = new Set();
+    }
+    update(g) {
+      const d = this.dono;
+      this.t++;
+      if (this.t <= PC_TRI_IDA) {                  // ida: sai rapido e freia na borda
+        const k = this.t / PC_TRI_IDA, e = 1 - (1 - k) * (1 - k);
+        this.px = this.ox + this.vx * this.alc * e;
+        this.py = this.oy + this.vy * this.alc * e;
+        if (this.t === PC_TRI_IDA) { this.fx = this.px; this.fy = this.py; this.atingidos.clear(); }
+      } else {                                     // volta: acelera ate a mao
+        const k = (this.t - PC_TRI_IDA) / PC_TRI_VOLTA, e = k * k;
+        this.px = G.lerp(this.fx, d.cx, e);
+        this.py = G.lerp(this.fy, d.cy - 3, e);
+        if (this.t >= PC_TRI_IDA + PC_TRI_VOLTA) { this.dead = true; Sound.play('swing'); return; }
+      }
+      this.x = this.px - 6; this.y = this.py - 6;
+      if ((g.tick & 1) === 0) g.particles.spawn(this.px, this.py, 0, 0, 10, (g.tick & 2) ? 4 : 0, 1, 0);
+      const alvos = g.alvos(d);
+      for (let i = 0; i < alvos.length; i++) {
+        const e = alvos[i];
+        if (e.dead || this.atingidos.has(e) || !this.hits(e)) continue;
+        this.atingidos.add(e);
+        const a = Math.atan2(e.cy - this.py, e.cx - this.px);
+        G.ferir(g, e, this.dmg, Math.cos(a), Math.sin(a), d);
+        g.particles.burst(e.cx, e.cy, 8, 4, 1.6, 14);
+      }
+    }
+    draw(ctx, S) {
+      const set = S.tridente, n = S.bladeSteps, step = (Math.PI * 2) / n, piv = set.pivot;
+      // na ida aponta para onde vai; na volta a ponta fica virada para longe do Percy
+      const ang = this.t <= PC_TRI_IDA ? Math.atan2(this.vy, this.vx)
+        : Math.atan2(this.py - this.dono.cy, this.px - this.dono.cx);
+      const img = set[((Math.round(ang / step) % n) + n) % n];
+      const bx = this.px - Math.cos(ang) * 17, by = this.py - Math.sin(ang) * 17;   // meio da haste no centro
+      ctx.drawImage(img, (bx - piv) | 0, (by - piv) | 0);
+    }
+  }
+
+  // barreira de agua (C): 5 blocos lado a lado na frente do Percy por 8 s.
+  // Inimigos (e o oponente no VS) nao atravessam, e tiros inimigos se desfazem nela
+  class BarreiraAgua extends Ent {
+    constructor(dono) {
+      super(0, 0, 0, 0);
+      this.dono = dono;
+      const v = DIR_VEC[dono.dir];
+      this.v = v;
+      const diag = v[0] !== 0 && v[1] !== 0, esp = diag ? 12 : 16;
+      const perp = [-v[1], v[0]];
+      const cx = dono.cx + v[0] * 24, cy = dono.cy + v[1] * 24;
+      this.blocos = [];
+      for (let k = -(PC_BARREIRA_N >> 1); k <= PC_BARREIRA_N >> 1; k++) {
+        this.blocos.push({ x: cx + perp[0] * k * esp - 8, y: cy + perp[1] * k * esp - 8, w: 16, h: 16 });
+      }
+      // ordena pelo pe do bloco mais baixo, para desenhar na profundidade certa
+      this.y = Math.max(...this.blocos.map((b) => b.y)); this.h = 16;
+      this.t = PC_BARREIRA_T;
+    }
+    update(g) {
+      if (--this.t <= 0) {
+        this.dead = true;
+        for (const b of this.blocos) g.particles.burst(b.x + 8, b.y + 8, 8, 4, 1.4, 16);
+        return;
+      }
+      const v = this.v;
+      const alvos = g.alvos(this.dono);
+      for (const e of alvos) {
+        if (e.dead) continue;
+        for (const b of this.blocos) {
+          if (!G.overlap(b.x, b.y, b.w, b.h, e.x, e.y, e.w, e.h)) continue;
+          // empurra para o lado da barreira em que o centro dele esta
+          const lado = ((e.cx - b.x - 8) * v[0] + (e.cy - b.y - 8) * v[1]) >= 0 ? 1 : -1;
+          for (let k = 0; k < 12 && G.overlap(b.x, b.y, b.w, b.h, e.x, e.y, e.w, e.h); k++) {
+            const ox = e.x, oy = e.y;
+            G.moveEnt(e, g.room, v[0] * lado * 2, v[1] * lado * 2, e.fly, false);
+            if (e.x === ox && e.y === oy) break;       // encostado na parede
+          }
+        }
+      }
+      for (const s of g.ents) {                      // tiros inimigos batem na agua
+        if (!s.shot || s.friendly || s.dead) continue;
+        if (this.blocos.some((b) => G.overlap(b.x, b.y, b.w, b.h, s.x, s.y, s.w, s.h))) {
+          s.dead = true;
+          g.particles.burst(s.cx, s.cy, 6, 4, 1.4, 12);
+        }
+      }
+    }
+    draw(ctx, S, tick) {
+      if (this.t < 90 && (tick & 4)) return;         // pisca no ultimo 1,5 s
+      for (const b of this.blocos) {
+        const x = b.x | 0, y = b.y | 0;
+        ctx.fillStyle = 'rgba(47,111,184,0.55)';
+        ctx.fillRect(x, y, 16, 16);
+        ctx.fillStyle = 'rgba(127,210,255,0.7)';
+        for (let r = 0; r < 3; r++) {                // ondinhas correndo
+          const o = ((tick >> 2) + r * 5) % 16;
+          ctx.fillRect(x + o, y + 4 + r * 5, 4, 1);
+        }
+        ctx.fillStyle = '#eaffff';
+        ctx.fillRect(x, y, 16, 1);
+        ctx.fillRect(x + ((tick >> 1) % 16), y + 1, 2, 1);
+      }
+    }
+  }
+
+  // redemoinho de agua (V): puxa todos para o centro por 8 s e explode no fim
+  class RedemoinhoAgua extends Ent {
+    constructor(x, y, dmg) {
+      super(x - 8, y - 8, 16, 16);
+      this.ox = x; this.oy = y; this.dmg = dmg;
+      this.t = PC_TORNADO_T;
+    }
+    update(g) {
+      const alvos = g.alvos(this.dono);
+      for (const e of alvos) {
+        if (e.dead) continue;
+        const dx = this.ox - e.cx, dy = this.oy - e.cy, d = Math.hypot(dx, dy);
+        if (d < 4) continue;
+        const f = Math.min(d, e.boss ? PC_PUXA_CHEFE : PC_PUXA);
+        G.moveEnt(e, g.room, (dx / d) * f, (dy / d) * f, e.fly, false);
+      }
+      if ((g.tick & 1) === 0) {                      // agua girando para dentro
+        const a = Math.random() * Math.PI * 2, r = 40 + Math.random() * 60;
+        g.particles.spawn(this.ox + Math.cos(a) * r, this.oy + Math.sin(a) * r,
+          -Math.cos(a) * 1.2 - Math.sin(a) * 0.8, -Math.sin(a) * 1.2 + Math.cos(a) * 0.8, 24, (g.tick & 2) ? 4 : 0, 1, 0);
+      }
+      if ((g.tick & 31) === 0) Sound.play('swing');
+      if (--this.t > 0) return;
+      this.dead = true;
+      for (const e of alvos) {
+        if (e.dead || G.dist(this.ox, this.oy, e.cx, e.cy) > PC_TORNADO_RAIO) continue;
+        const a = Math.atan2(e.cy - this.oy, e.cx - this.ox);
+        G.ferirBruto(g, e, this.dmg, Math.cos(a), Math.sin(a), this.dono);
+      }
+      for (let k = 0; k < 70; k++) {
+        const a = (k / 70) * Math.PI * 2, v = 1.5 + Math.random() * 3;
+        g.particles.spawn(this.ox, this.oy, Math.cos(a) * v, Math.sin(a) * v, 20 + Math.random() * 16,
+          Math.random() < 0.6 ? 4 : 0, 2, 0);
+      }
+      g.flashT = Math.max(g.flashT, 8);
+      g.shake(10);
+      Sound.play('nova');
+      g.say('EXPLOSAO DE AGUA!', 60);
+    }
+    draw(ctx, S, tick) {
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect((this.ox - 14) | 0, (this.oy + 6) | 0, 28, 4);
+      const cores = ['#2f6fb8', '#5aa7ff', '#bfe6ff', '#ffffff'];
+      for (let k = 0; k < 48; k++) {
+        const h = k / 48, r = 4 + h * 16, a = tick * 0.35 + k * 0.8;
+        const x = this.ox + Math.cos(a) * r, y = this.oy + 6 - h * 40 + Math.sin(a) * r * 0.3;
+        ctx.fillStyle = cores[k & 3];
+        ctx.fillRect(x | 0, y | 0, 2, 2);
+      }
+    }
+  }
+
+  // tsunami (F): uma onda entra pela esquerda e varre a sala, arrastando todos para a direita.
+  // No fim os monstros morrem afogados, chefes levam 1/3 da vida e o oponente no VS so leva PVP_F,
+  // ficando encostado na borda direita
+  class Tsunami extends Ent {
+    constructor() {
+      super(0, VIEW_H, 0, 0);                        // desenhada por cima de tudo
+      this.frente = -24;
+      this.presos = new Set();
+    }
+    update(g) {
+      this.frente += PC_TSUNAMI_SPD;
+      for (const e of g.alvos(this.dono)) if (!e.dead && e.cx <= this.frente) this.presos.add(e);
+      for (const e of this.presos) {
+        if (e.dead) continue;
+        e.x = Math.max(e.x, Math.min(this.frente - e.w, VIEW_W - e.w - 2));
+        e.para = Math.max(e.para || 0, 2);           // preso na agua: nao anda nem ataca
+        e.knock = 0;
+        if ((g.tick & 3) === 0) g.particles.spawn(e.cx, e.y, (Math.random() - 0.5), -0.8, 12, 0, 1, 0);
+      }
+      if ((g.tick & 1) === 0) {
+        for (let k = 0; k < 3; k++) {
+          g.particles.spawn(this.frente, Math.random() * VIEW_H, 1 + Math.random(), -0.5 - Math.random(), 16,
+            k === 0 ? 0 : 4, 2, 0);
+        }
+      }
+      if (this.frente < VIEW_W + 24) return;
+      this.dead = true;
+      let mortos = 0, chefe = false;
+      for (const e of this.presos) {
+        if (e.dead) continue;
+        desencalha(g, e);
+        if (e instanceof Player) G.ferirBruto(g, e, PVP_F, 1, 0, this.dono);
+        else if (e.boss) { G.ferirBruto(g, e, Math.max(1, Math.ceil(e.maxhp / 3)), 1, 0, this.dono); chefe = true; }
+        else { G.ferirBruto(g, e, 999, 1, 0, this.dono); mortos++; }
+        g.particles.burst(e.cx, e.cy, 12, 4, 2, 18);
+      }
+      g.shake(8);
+      Sound.play('nova');
+      if (chefe) g.say('O CHEFE RESISTE!', 100);
+      else if (mortos) g.say('SALA INUNDADA!', 90);
+    }
+    draw(ctx, S, tick) {
+      const f = this.frente | 0;
+      ctx.fillStyle = 'rgba(47,111,184,0.18)';        // agua que ficou para tras
+      ctx.fillRect(0, 0, Math.max(0, f - 36), VIEW_H);
+      ctx.fillStyle = 'rgba(47,111,184,0.6)';         // paredao da onda
+      ctx.fillRect(f - 36, 0, 36, VIEW_H);
+      ctx.fillStyle = 'rgba(90,167,255,0.75)';
+      ctx.fillRect(f - 14, 0, 14, VIEW_H);
+      for (let y = 0; y < VIEW_H; y += 2) {           // crista de espuma ondulando
+        const o = Math.sin(y * 0.15 + tick * 0.3) * 3;
+        ctx.fillStyle = (y & 4) ? '#eaffff' : '#bfe6ff';
+        ctx.fillRect((f + o) | 0, y, 3, 2);
+      }
+    }
+  }
+
+  // tira da parede quem a agua largou dentro dela, puxando para a esquerda
+  function desencalha(g, e) {
+    for (let s = 0; s <= 96; s += 2) {
+      if (!G.boxSolid(g.room, e.x - s, e.y, e.w, e.h, e.fly)) { e.x -= s; return; }
     }
   }
 

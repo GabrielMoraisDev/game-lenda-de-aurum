@@ -39,7 +39,7 @@ pelo `servidor.js`, ele percebe (rota `/aurum-servidor`) e usa o WebSocket local
 |---|---|
 | **Cooperativo** | O jogo normal com os dois. Quem cair volta em 4 s ao lado do parceiro; se os dois caírem, é fim de jogo. Chaves e fragmentos valem para o grupo. |
 | **Competitivo** | 3 minutos: quem matar mais bichos vence. Aparecem inimigos novos o tempo todo na sala (até 6 vivos). Quem cair volta em 3 s. Placar e cronômetro no topo da tela. |
-| **VS** | Um contra o outro numa **arena fechada** (sem saídas), escolhida por quem cria a sala: Campo de Aurum, Caverna dos Goblins, Pântano Sombrio ou Castelo Sombrio. Sem monstros, **20 de vida** cada, mostrada em **barra** (no HUD e no placar do topo). Todos os ataques e especiais acertam o oponente (todo F — onda de choque, bola de fogo, meteoro e explosivos — tira 2, o dobro de uma espada comum). X, C e V liberam com o **dano causado no oponente**: 3, 6 e 10 pontos de vida tirados. |
+| **VS** | Um contra o outro numa **arena fechada** (sem saídas), escolhida por quem cria a sala: Campo de Aurum, Caverna dos Goblins, Pântano Sombrio ou Castelo Sombrio. Sem monstros, **20 de vida** cada, mostrada em **barra** (no HUD e no placar do topo). Todos os ataques e especiais acertam o oponente (todo F — onda de choque, bola de fogo, meteoro, explosivos e tsunami — tira 2, o dobro de uma espada comum). X, C e V liberam com o **dano causado no oponente**: 3, 6 e 10 pontos de vida tirados. |
 
 No fim do competitivo e do VS, o anfitrião aperta ENTER para jogar de novo ou ESC para sair.
 
@@ -57,17 +57,32 @@ o jogador 1 e uma azul o jogador 2. O multijogador não mexe no save do modo sol
 | Atacar (espada, flecha ou magia) | J ou Z | A / X | botão A |
 | Rolar / dash (invulnerável; 2× mais longo no arqueiro) | Espaço, K ou Shift | B / RB | botão ROL |
 | **Habilidade especial** (recarga de 60 s, a única com recarga) | F | Y / RT | botão F |
-| **Salva de flechas** (arqueiro; segure para 4 salvas) / **Investida** (guerreiro; segure para carregar; sem abates, só 1 s de espera) / **Tempestade de raios** (mago) / **Estrelas ninja** (ninja) — libera com **3 abates** | X | LT / LB | botão X |
-| **4 giros de 360°** (arqueiro) / **Tornado** (guerreiro) / **Escudo** (mago) / **Velocidade** (ninja) — libera com **6 abates** | C | RB / R3 | botão C |
-| **Flecha dourada** (arqueiro) / **Investida relâmpago** (guerreiro) / **Inferno** (mago) / **Névoa de veneno** (ninja) — libera com **10 abates** | V | L3 | botão V |
+| **Salva de flechas** (arqueiro; segure para 4 salvas) / **Investida** (guerreiro; segure para carregar; sem abates, só 1 s de espera) / **Tempestade de raios** (mago) / **Estrelas ninja** (ninja) / **Tridente arremessado** (Percy) — libera com **3 abates** | X | LT / LB | botão X |
+| **4 giros de 360°** (arqueiro) / **Tornado** (guerreiro) / **Escudo** (mago) / **Velocidade** (ninja) / **Barreira de água** (Percy) — libera com **6 abates** | C | RB / R3 | botão C |
+| **Flecha dourada** (arqueiro) / **Investida relâmpago** (guerreiro) / **Inferno** (mago) / **Névoa de veneno** (ninja) / **Redemoinho** (Percy) — libera com **10 abates** | V | L3 | botão V |
 | Escolher herói / confirmar | setas + Enter | direcional + Start | d-pad + ≡ |
 | Começar / continuar | Enter | Start | ≡ |
-| Pausa e mapa | Esc ou P | Select | ≡ |
+| Menu: loja e mapa (pausa no solo) | Esc ou P | Select | ≡ |
 | Som liga/desliga | M | — | — |
 | Multijogador (tela inicial) | N | — | — |
 | FPS | F3 | — | — |
 
-## Os quatro heróis
+## Loja
+
+O ESC abre o menu com duas abas: **LOJA** e **MAPA** (setas para os lados trocam). Na loja, setas para
+cima e para baixo escolhem, J ou Enter compra, ESC fecha. Cada item se compra uma vez e fica no save.
+
+| Preço | Item | Efeito |
+|---|---|---|
+| 100 moedas | Cura automática | recupera meio coração a cada 10 s |
+| 200 moedas | Arma principal +1 | +1 de dano no ataque (J): espada, flecha, magia do cajado, katana ou tridente |
+| 300 moedas | Velocidade +30% | anda 30% mais rápido (também vale no tornado do guerreiro e na velocidade do ninja) |
+| 400 moedas | Demais armas +1 | +1 no dano base do X, C e V (multiplicado junto, ex.: investida máxima 3×) |
+
+No solo o jogo fica pausado com o menu aberto. No multijogador **cada jogador abre a sua loja** e
+compra com as próprias moedas; o jogo não pausa — quem está na loja fica parado.
+
+## Os cinco heróis
 
 Ao começar um jogo novo você escolhe a classe na tela de seleção (setas escolhem, Enter confirma).
 Cada uma tem sprites próprios nas 8 direções, ataque diferente e stats diferentes. A classe fica
@@ -79,6 +94,7 @@ gravada no save.
 | **Arqueiro** | Arco | 5 corações | 1,7 | 1 | Flecha carregável, onda de choque, rolamento longo |
 | **Mago** | Cajado | 5 corações | 1,20 | 2 | Cajado em arco + magia elemental |
 | **Ninja** | Katana | 5 corações | 1,6 | 2 | Katana em arco de 180° (2× o dano da espada) |
+| **Percy** | Tridente | 5 corações | 1,5 | 1 | Golpe da espada com 1,5× o alcance |
 
 O primeiro fragmento dobra o dano de qualquer uma delas (espada, flechas ou cajado de ouro).
 
@@ -208,6 +224,18 @@ Roupa preta, pano cobrindo o rosto e faixa vermelha na testa. Ataca com a **kata
 | C | Velocidade | velocidade de andar **2,7 por 10 s** | 6 abates |
 | V | Névoa de veneno | uma névoa cobre **a sala toda por 6 s**: todos os inimigos (e o oponente no VS) levam 1 de dano por segundo; o ninja é imune | 10 abates |
 | F | Explosivos | um explosivo voa até **cada inimigo da sala** e explode nele: inimigos comuns morrem, chefes levam 1/3 da vida | recarga de 60 s |
+
+### Percy
+
+Cabelo preto bagunçado, camiseta laranja e calça jeans. Ataca com o **tridente** (J): o mesmo golpe em
+arco de 180° da espada do guerreiro, com o mesmo dano, mas **1,5× o alcance**.
+
+| Tecla | Habilidade | O que faz | Libera com |
+|---|---|---|---|
+| X | Tridente arremessado | arremessa o tridente na direção encarada: vai até a borda da sala e volta para a mão em **2 s**, atravessando paredes. **2× o dano** do tridente, acerta cada alvo na ida e na volta. Sem o tridente na mão, o J fica travado até ele voltar | 3 abates |
+| C | Barreira de água | parede de **5 blocos** à frente do Percy por 8 s. Inimigos (e o oponente no VS) não atravessam e tiros inimigos se desfazem nela | 6 abates |
+| V | Redemoinho | um tornado de água no meio da sala **puxa todos para o centro por 8 s** e no fim explode: quem estiver a até 3,5 blocos leva **4× o dano** do tridente | 10 abates |
+| F | Tsunami | uma onda entra pela esquerda e **arrasta todos para a direita**; os monstros morrem afogados, chefes levam 1/3 da vida. No VS o oponente não morre: é arrastado até a borda direita e leva o dano de F do VS | recarga de 60 s |
 
 ### O golpe de espada
 

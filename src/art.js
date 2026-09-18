@@ -914,6 +914,27 @@
     });
   }
 
+  // tridente do Percy: haste de bronze 1,5x mais longa que a espada e tres pontas.
+  // Canvas maior (72) para caber o alcance; o pivo continua no centro
+  const TRIDENTE_CANVAS = 72;
+  function buildTridentes() {
+    const set = rotSet(TRIDENTE_CANVAS, (put) => {
+      const haste = '#c79a1f', hasteD = '#8a6a1f', ponta = '#7ff2ff', pontaD = '#2f8fb8', brilho = '#eaffff';
+      put(0, 0, 3, hasteD);                                    // pomo
+      for (let d = 1; d <= 25; d++) put(d, 0, 2, d % 5 === 0 ? hasteD : haste);
+      for (let o = -5; o <= 5; o++) put(26, o, 2, pontaD);     // travessa
+      for (let d = 27; d <= 33; d++) put(d, 0, 2, ponta);      // ponta do meio
+      put(34, 0, 1, brilho);
+      for (const o of [-5, 5]) {                               // pontas dos lados
+        for (let d = 27; d <= 31; d++) put(d, o, 1, ponta);
+        put(32, o, 1, brilho);
+        put(29, o - Math.sign(o), 1, pontaD);                  // farpa
+      }
+    });
+    set.pivot = TRIDENTE_CANVAS >> 1;
+    return set;
+  }
+
   // estrela ninja: 4 pontas, girando
   function estrelaFrames() {
     return [0, 1].map((f) => {
@@ -1436,6 +1457,13 @@
       trim: '#c83a3a', boot: '#14161f'
     };
     const ninjaOpt = { mask: '#1f2230', scarf: true };
+
+    // Percy: cabelo preto bagunçado, camiseta laranja, calca jeans
+    const percyPal = {
+      skin: '#e3b184', hair: '#14121a', body: '#ff8a3d', bodyD: '#d86a24',
+      trim: '#2f6fb8', boot: '#3a4a6b'
+    };
+    const percyOpt = { coil: true, hairD: '#2e2c3a' };
     const goblin = charSet(
       { skin: '#6fae3f', hair: '#2f4a1c', body: '#8a5a2b', bodyD: '#6b4a2a', trim: '#4a3018', boot: '#3c2a17' },
       { ears: true, mouth: '#2a1010' }
@@ -1517,9 +1545,10 @@
         guerreiro: { walk: hero, atk: heroAtk },
         arqueiro: { walk: charSet(archerPal, archerOpt), atk: charSet(archerPal, archerOpt, 'atk') },
         mago: { walk: charSet(magePal, mageOpt), atk: charSet(magePal, mageOpt, 'atk') },
-        ninja: { walk: charSet(ninjaPal, ninjaOpt), atk: charSet(ninjaPal, ninjaOpt, 'atk') }
+        ninja: { walk: charSet(ninjaPal, ninjaOpt), atk: charSet(ninjaPal, ninjaOpt, 'atk') },
+        percy: { walk: charSet(percyPal, percyOpt), atk: charSet(percyPal, percyOpt, 'atk') }
       },
-      katana: buildKatanas(), estrela: estrelaFrames(),
+      katana: buildKatanas(), estrela: estrelaFrames(), tridente: buildTridentes(),
       blade: buildBlades(), bladeSteps: BLADE_STEPS, bladePivot: BLADE_PIVOT,
       bow: buildBows(), staff: buildStaves(), shaft: buildArrows(), goldShaft: buildGoldArrows(),
       iceorb: orbFrames('#7ff2ff', '#2f8fb8', '#eaffff'),

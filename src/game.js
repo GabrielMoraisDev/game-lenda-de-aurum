@@ -564,7 +564,7 @@
         levelId: this.levelId, room: this.roomIdx, x: p.x, y: p.y,
         hp: p.hp, maxhp: p.maxhp, coins: p.coins, keys: p.keys,
         shards: p.shards, sword: p.sword,
-        cls: p.cls, elem: p.elem,
+        cls: p.cls, elem: p.elem, compras: p.compras,
         flags: this.flags
       };
       if (G.store.set(SAVE_KEY, JSON.stringify(data))) this.hasSave = true;
@@ -619,6 +619,7 @@
       this.player.hp = Math.min(this.player.maxhp, d.hp + (this.player.maxhp - d.maxhp));
       this.player.coins = d.coins; this.player.keys = d.keys;
       this.player.shards = d.shards; this.player.sword = d.sword || 1;
+      for (const id in d.compras || {}) this.player.compra(id);
       this.enterLevel(d.levelId, d.room, d.x, d.y);
       this.state = 'play';
       return true;
@@ -701,13 +702,20 @@
     }
 
     stepPlay() {
-      if (this.input.hit('pause')) { this.state = 'pause'; Sound.play('menu'); return; }
+      // solo: o menu (loja e mapa) pausa o jogo. Multijogador: cada um abre o seu e o jogo segue
+      if (!this.mp && this.input.hit('pause')) { this.abreMenu(this.player); this.state = 'pause'; return; }
       if (this.fadeDir > 0) return;
 
       for (const p of this.players) {
         if (p.dead) {
+          p.menu = null;
           if (this.mp && p.respawnT > 0 && --p.respawnT === 0) this.reviver(p);
           continue;
+        }
+        if (this.mp) {
+          const i = p.input || this.input;
+          if (p.menu) { this.stepMenu(p, i); continue; }   // parado enquanto olha a loja
+          if (i.hit('pause')) { this.abreMenu(p); continue; }
         }
         this.donoAtual = p;
         p.update(this);
@@ -796,7 +804,48 @@
     }
 
     stepPause() {
-      if (this.input.hit('pause') || this.input.hit('start')) { this.state = 'play'; Sound.play('menu'); }
+      const p = this.player;
+      if (!p.menu) this.abreMenu(p);
+      this.stepMenu(p, this.input);
+      if (!p.menu) this.state = 'play';
+    }
+
+    /* ---------------- menu do ESC: loja e mapa ---------------- */
+
+    abreMenu(p) {
+      p.menu = { aba: 0, sel: 0 };
+      Sound.play('menu');
+    }
+
+    // setas para os lados trocam de aba, para cima e baixo escolhem, J ou Enter compra, ESC fecha
+    stepMenu(p, i) {
+      const m = p.menu;
+      if (i.hit('pause')) { p.menu = null; Sound.play('menu'); return; }
+      if (i.hit('left') || i.hit('right')) { m.aba = 1 - m.aba; Sound.play('menu'); return; }
+      if (m.aba === 1) {
+        if (i.hit('start')) { p.menu = null; Sound.play('menu'); }
+        return;
+      }
+      const n = G.LOJA.length;
+      if (i.hit('up')) { m.sel = (m.sel + n - 1) % n; Sound.play('menu'); }
+      if (i.hit('down')) { m.sel = (m.sel + 1) % n; Sound.play('menu'); }
+      if (i.hit('attack') || i.hit('start')) this.comprar(p, G.LOJA[m.sel]);
+    }
+
+    comprar(p, item) {
+      const quem = this.mp ? 'JOGADOR ' + p.num + ': ' : '';
+      if (p.compras[item.id]) { Sound.play('blocked'); this.say(quem + 'JA COMPRADO', 60); return; }
+      if (p.coins < item.preco) {
+        Sound.play('blocked');
+        this.say(quem + 'FALTAM ' + (item.preco - p.coins) + ' MOEDAS', 60);
+        return;
+      }
+      p.coins -= item.preco;
+      p.compra(item.id);
+      Sound.play('secret');
+      this.particles.burst(p.cx, p.cy, 16, 1, 2, 20);
+      this.say(quem + item.nome + '!', 80);
+      this.save();
     }
 
     stepDead() {
@@ -1085,7 +1134,7 @@
       }
 
       if (this.modo() === 'comp' || this.modo() === 'vs') this.drawPlacar(c);
-      if (this.state === 'pause') this.drawPause(c);
+      if (this.state === 'pause' || (this.hudP && this.hudP.menu)) this.drawPause(c);
       if (this.state === 'dead') this.drawDead(c);
       if (this.hudP && this.hudP.dead && this.mp && this.hudP.respawnT > 0 && this.state === 'play') {
         this.text(c, 'VOCE CAIU - VOLTA EM ' + Math.ceil(this.hudP.respawnT / 60) + 'S', VIEW_W / 2, HUD_H + 40, '#e33b4e', 'center');
@@ -1344,7 +1393,7 @@
       this.text(c, 'ESCOLHA SEU HEROI', VIEW_W / 2, 20, '#ffd34d', 'center', 12);
 
       const S = this.SPR;
-      const pw = 60, ph = 96, gap = 3;
+      const pw = 64, ph = 96, gap = 4;
       const total = G.CLASS_IDS.length * pw + (G.CLASS_IDS.length - 1) * gap;
       const ox = (VIEW_W - total) / 2, oy = 32;
 
@@ -1390,6 +1439,9 @@
       if (G.CLASS_IDS[this.selIdx] === 'guerreiro') {
         this.text(c, 'X INVESTIDA 1s   C TORNADO 7s   V RELAMPAGO', VIEW_W / 2, 178, '#c8cede', 'center');
       }
+      if (G.CLASS_IDS[this.selIdx] === 'percy') {
+        this.text(c, 'X TRIDENTE   C BARREIRA   V REDEMOINHO', VIEW_W / 2, 178, '#5aa7ff', 'center');
+      }
       if (G.CLASS_IDS[this.selIdx] === 'ninja') {
         this.text(c, 'X 5 ESTRELAS   C VELOCIDADE 10s   V VENENO', VIEW_W / 2, 178, '#7fd858', 'center');
       }
@@ -1398,10 +1450,17 @@
       this.text(c, 'SETAS ESCOLHEM   ENTER CONFIRMA   ESC VOLTA', VIEW_W / 2, 200, '#5c667e', 'center');
     }
 
+    // menu do ESC com duas abas: LOJA e MAPA (pausa no solo)
     drawPause(c) {
       c.fillStyle = 'rgba(6,8,16,0.88)';
       c.fillRect(0, 0, VIEW_W, VIEW_H + HUD_H);
-      this.text(c, 'PAUSA', VIEW_W / 2, 24, '#ffd34d', 'center', 12);
+      const p = this.hudP || this.player;
+      const aba = p.menu ? p.menu.aba : 1;
+      this.text(c, 'LOJA', VIEW_W / 2 - 40, 22, aba === 0 ? '#ffd34d' : '#5c667e', 'center', 12);
+      this.text(c, 'MAPA', VIEW_W / 2 + 40, 22, aba === 1 ? '#ffd34d' : '#5c667e', 'center', 12);
+      c.fillStyle = '#ffd34d';
+      c.fillRect(VIEW_W / 2 + (aba === 0 ? -56 : 24), 26, 32, 1);
+      if (aba === 0) { this.drawLoja(c, p); return; }
 
       // minimapa
       const lv = this.level;
@@ -1441,7 +1500,6 @@
         }
       }
 
-      const p = this.hudP || this.player;
       this.text(c, lv.name, VIEW_W / 2, 40, '#8f96a8', 'center');
       if (this.levelId === 'overworld') this.text(c, 'AMARELO = CAVERNA   VERDE = PANTANO   ROXO = CASTELO   VERMELHO = CHEFE', VIEW_W / 2, oy + mh + 6, '#5c667e', 'center');
       else if (lv.kind === 'field') this.text(c, 'VERMELHO = CHEFE', VIEW_W / 2, oy + mh + 6, '#5c667e', 'center');
@@ -1457,14 +1515,36 @@
       const nomes = { bow: ['SALVA DE 3 FLECHAS (X, SEGURE)', '4 GIROS (C)', 'DOURADA (V)'],
         melee: ['INVESTIDA (X, SEGURE)', 'TORNADO (C)', 'RELAMPAGO (V)'],
         magic: ['TEMPESTADE DE RAIOS (X)', 'ESCUDO (C)', 'INFERNO (V)'],
-        ninja: ['ESTRELAS NINJA (X)', 'VELOCIDADE (C)', 'VENENO (V)'] }[p.def.modo];
+        ninja: ['ESTRELAS NINJA (X)', 'VELOCIDADE (C)', 'VENENO (V)'],
+        percy: ['TRIDENTE (X)', 'BARREIRA (C)', 'REDEMOINHO (V)'] }[p.def.modo];
       if (nomes) {
         const xTxt = p.cls === 'guerreiro' ? (p.xCd === 0 ? 'PRONTO' : 'ESPERA 1s') : falta(p.spCd);
         this.text(c, nomes[0] + ': ' + xTxt, VIEW_W / 2, oy + mh + 52, '#7fd858', 'center');
         this.text(c, nomes[1] + ': ' + falta(p.spinCd), VIEW_W / 2 - 6, oy + mh + 64, '#b45cff', 'right');
         this.text(c, nomes[2] + ': ' + falta(p.goldCd), VIEW_W / 2 + 6, oy + mh + 64, '#ffd34d', 'left');
       }
-      this.text(c, 'ESC OU ENTER = VOLTAR', VIEW_W / 2, VIEW_H + HUD_H - 12, '#5c667e', 'center');
+      this.text(c, 'SETAS PARA OS LADOS = LOJA   ESC OU ENTER = VOLTAR', VIEW_W / 2, VIEW_H + HUD_H - 12, '#5c667e', 'center');
+    }
+
+    drawLoja(c, p) {
+      c.drawImage(this.SPR.coin[(this.tick >> 3) % 4], VIEW_W / 2 - 34, 36);
+      this.text(c, 'MOEDAS ' + p.coins, VIEW_W / 2 - 22, 44, '#ffd34d');
+      const w = 300, x = (VIEW_W - w) / 2;
+      G.LOJA.forEach((item, k) => {
+        const y = 56 + k * 34, sel = p.menu && p.menu.sel === k;
+        const tem = !!p.compras[item.id], da = p.coins >= item.preco;
+        c.fillStyle = sel ? '#242a42' : '#171b2c';
+        c.fillRect(x, y, w, 28);
+        c.strokeStyle = sel ? '#ffd34d' : '#3a4159';
+        c.lineWidth = 1;
+        c.strokeRect(x + 0.5, y + 0.5, w - 1, 27);
+        this.text(c, item.nome, x + 8, y + 12, tem ? '#7fd858' : sel ? '#ffffff' : '#c8cede');
+        this.text(c, item.desc, x + 8, y + 23, '#8f96a8');
+        if (tem) this.text(c, 'COMPRADO', x + w - 8, y + 12, '#7fd858', 'right');
+        else this.text(c, item.preco + ' MOEDAS', x + w - 8, y + 12, da ? '#ffd34d' : '#e33b4e', 'right');
+      });
+      this.text(c, 'J OU ENTER = COMPRAR   SETAS PARA OS LADOS = MAPA   ESC = FECHAR',
+        VIEW_W / 2, VIEW_H + HUD_H - 12, '#5c667e', 'center');
     }
 
     fundoMenu(c) {
