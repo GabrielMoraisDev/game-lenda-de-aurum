@@ -1,0 +1,122 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  background: #07070c;
+  color: #c8cede;
+  font-family: "Courier New", monospace;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#wrap {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 50% 40%, #16161f 0%, #07070c 70%);
+}
+
+#game {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #0b0b12;
+}
+
+#loading {
+  position: absolute;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: #5c667e;
+}
+
+/* ---------- controles de toque ---------- */
+#touch { display: none; }
+
+@media (pointer: coarse) {
+  #touch {
+    display: block;
+    position: fixed;
+    inset: auto 0 0 0;
+    height: 190px;
+    pointer-events: none;
+  }
+  #touch .pad,
+  #touch .acts { pointer-events: auto; }
+
+  #touch .pad {
+    position: absolute;
+    left: 14px; bottom: 22px;
+    width: 150px; height: 150px;
+  }
+  #touch .k {
+    position: absolute;
+    width: 50px; height: 50px;
+    background: rgba(200, 206, 222, 0.16);
+    border: 2px solid rgba(200, 206, 222, 0.3);
+    border-radius: 10px;
+  }
+  #touch .k.up { left: 50px; top: 0; }
+  #touch .k.down { left: 50px; top: 100px; }
+  #touch .k.left { left: 0; top: 50px; }
+  #touch .k.right { left: 100px; top: 50px; }
+
+  #touch .acts {
+    position: absolute;
+    right: 16px; bottom: 26px;
+    width: 160px; height: 140px;
+  }
+  #touch .b {
+    position: absolute;
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    background: rgba(255, 211, 77, 0.18);
+    border: 2px solid rgba(255, 211, 77, 0.45);
+    color: #ffd34d;
+    font: bold 20px "Courier New", monospace;
+  }
+  #touch .b.atk { right: 0; bottom: 46px; }
+  #touch .b.roll { right: 72px; bottom: 6px; background: rgba(90, 167, 255, 0.18); border-color: rgba(90, 167, 255, 0.45); color: #5aa7ff; }
+  #touch .b.fire {
+    right: 88px; bottom: 76px;
+    width: 52px; height: 52px;
+    background: rgba(255, 106, 36, 0.2);
+    border-color: rgba(255, 106, 36, 0.5);
+    color: #ff8a3d;
+  }
+  #touch .b.esp {
+    right: 150px; bottom: 60px;
+    width: 52px; height: 52px;
+    background: rgba(127, 216, 88, 0.18);
+    border-color: rgba(127, 216, 88, 0.45);
+    color: #7fd858;
+  }
+  #touch .b.giro {
+    right: 150px; bottom: 118px;
+    width: 46px; height: 46px;
+    background: rgba(180, 92, 255, 0.18);
+    border-color: rgba(180, 92, 255, 0.45);
+    color: #b45cff;
+  }
+  #touch .b.ouro {
+    right: 204px; bottom: 90px;
+    width: 46px; height: 46px;
+    background: rgba(255, 211, 77, 0.18);
+    border-color: rgba(255, 211, 77, 0.5);
+    color: #ffd34d;
+  }
+  #touch .b.st {
+    right: 6px; bottom: 120px;
+    width: 46px; height: 30px; border-radius: 8px;
+    background: rgba(200, 206, 222, 0.14);
+    border-color: rgba(200, 206, 222, 0.3);
+    color: #c8cede;
+  }
+  #touch .on { filter: brightness(1.8); }
+}
