@@ -83,6 +83,12 @@
     if (pts.length > 1) { g.ents.push(new Relampago(pts)); Sound.play('goldhit'); }
   };
 
+  // VS: o dano causado no oponente libera X, C e V de quem bateu (1 ponto de vida = 1 abate)
+  G.danoNoOponente = function (g, alvo, autor, n) {
+    if (!autor || autor === alvo || !(autor instanceof Player) || n <= 0 || g.modo() !== 'vs') return;
+    if (autor.carrega(n) && autor === g.player) g.cdPulse = 10;
+  };
+
   const PVP_WAVE = 4, PVP_NOVA = 6;              // dano em jogador: onda e explosao (meios-coracoes)
   G.PVP_NOVA = PVP_NOVA;
 
@@ -151,18 +157,17 @@
   const CHARGE_BAR = 60;                       // a barra so aparece depois de 1 s segurando (especial, X)
   const ATK_CHARGE_MAX = 45;                   // 0,75 s ate a carga cheia (tiro normal, Z): 2x mais rapido
   const ATK_CHARGE_BAR = 30;                   // a barra so aparece depois de 0,5 s segurando (tiro normal, Z)
-  const SP_CD = 120;                           // ataque especial: 2 s de recarga
-  const KILL_REFUND = 30;                      // cada inimigo morto adianta 0,5 s das recargas
+  const KILL_REFUND = 30;                      // cada inimigo morto adianta 0,5 s da recarga do F
+  // X, C e V nao tem recarga: liberam por abates desde o ultimo uso (no VS, por dano causado no oponente)
+  const ABATES_X = 3, ABATES_C = 6, ABATES_V = 10;
   const SP_RANGE_FULL = 480;                   // as flechas da salva sempre atravessam a sala inteira
   const SP_RAJADAS = 4, SP_RAJADA_T = 10;      // segurando ate a carga cheia: 4 salvas seguidas, a cada 10 quadros
   const SP_SHRINK_FULL = 140;                  // distancia em que a flecha termina de encolher
   const SP_SPACING = 16;                       // uma flecha por bloco, preenchendo o espaco
-  const SPIN_CD = 180;                         // giro de 360 graus: 3 s de recarga
   const SPIN_VOLTAS = 4;                       // 4 voltas, uma flecha em cada uma das 8 direcoes por volta
   const SPIN_TIME = 24 * SPIN_VOLTAS;          // 3 quadros por flecha, 32 flechas
   const SPIN_RANGE = 120;                      // 7,5 blocos em cada direcao
   const SPIN_DIRS = ['right', 'downright', 'down', 'downleft', 'left', 'upleft', 'up', 'upright'];
-  const GOLD_CD = 600;                         // flecha dourada (V): 10 s de recarga
   const GOLD_SPD = 3.6;                        // velocidade de cruzeiro
   const GOLD_TURN = 0.16;                      // quanto a flecha pode virar por quadro (rad)
   const GOLD_MULT = 3;                         // dano = 3x o de uma flecha comum
@@ -182,11 +187,8 @@
   const CICLO_ELEM = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2];
 
   // habilidades do mago
-  const MG_CHOQUE_CD = 300;                    // X: bate o cajado e eletrocuta todos (5 s de recarga)
   const MG_CHOQUE_T = 180, MG_CHOQUE_TICK = 30; // eletrocutado por 3 s, 1 de dano a cada 0,5 s
-  const MG_ESCUDO_CD = 420;                    // C: escudo (7 s de recarga)
   const MG_ESCUDO_T = 300;                     // invulneravel por 5 s
-  const MG_INFERNO_CD = 600;                   // V: bate o cajado e todos pegam fogo e morrem (10 s)
   const MG_INFERNO_T = 60;                     // queimam por 1 s antes de cair
   const MG_ERGUE = 20, MG_RECUA = 10;          // quadros erguendo o cajado e depois da batida
 
@@ -201,16 +203,13 @@
   const EFEITO_JOGADOR = { gelo: 90, fogo: 180, raio: 60 };
 
   // guerreiro: especiais com a espada
-  const KN_DASH_CD = 240;                      // investida (X): 4 s de recarga
   const KN_DASH_SPD = 6;                       // px por quadro
   const KN_DASH_SHORT = 64;                    // tapa: 4 blocos
   const KN_DASH_LONG = 400;                    // segurando: atravessa a sala ate a parede ou a borda
   const KN_DASH_MULT = 3;                      // carga cheia: 3x o dano da espada
-  const KN_GIRO_CD = 360;                      // giro triplo (C): 6 s de recarga
   const KN_GIRO_VOLTA = 16;                    // quadros por volta de 360 graus
   const KN_GIRO_VOLTAS = 3;
   const KN_GIRO_MULT = 2;                      // 2x o dano da espada, a cada volta
-  const KN_RUSH_CD = 600;                      // investida relampago (V): 10 s de recarga
   const KN_RUSH_SPD = 7;                       // px por quadro, ignorando paredes
   const KN_RUSH_PAUSA = 6;                     // quadros parado em cada golpe
   const KN_RUSH_MULT = 4;                      // 4x o dano da espada em cada inimigo
@@ -264,20 +263,16 @@
       this.charge = 0;
       this.spCharging = false;         // segurando o ataque especial (X)
       this.spCharge = 0;
-      this.spCd = 0;
-      this.spMax = SP_CD;
+      // spCd / spinCd / goldCd: abates que ainda faltam para liberar X / C / V (0 = pronto)
+      this.spMax = ABATES_X;
+      this.spCd = ABATES_X;
       this.spin = 0;                   // giro de 360 em andamento
       this.spinIdx = -1;
-      this.spinCd = 0;
-      this.spinMax = SPIN_CD;
+      this.spinMax = ABATES_C;
+      this.spinCd = ABATES_C;
       this.rajadas = 0; this.rajadaT = 0;     // salvas que ainda faltam na carga cheia (X)
-      this.goldCd = 0;                 // flecha dourada (V)
-      this.goldMax = GOLD_CD;
-      if (this.def.modo === 'melee') {  // guerreiro usa as mesmas teclas com outros tempos
-        this.spMax = KN_DASH_CD; this.spinMax = KN_GIRO_CD; this.goldMax = KN_RUSH_CD;
-      } else if (this.def.modo === 'magic') {
-        this.spMax = MG_CHOQUE_CD; this.spinMax = MG_ESCUDO_CD; this.goldMax = MG_INFERNO_CD;
-      }
+      this.goldMax = ABATES_V;         // flecha dourada / relampago / inferno (V)
+      this.goldCd = ABATES_V;
       this.golpeChao = null;           // mago: erguendo o cajado para bater no chao (X e V)
       this.escudo = 0;                 // mago: quadros de escudo (C)
       this.dashLeft = 0;               // investida (X): distancia que falta
@@ -377,14 +372,27 @@
 
     dano() { return this.def.dmg * this.sword; }
 
-    // cada abate adianta todas as recargas
+    // cada abate conta para liberar X, C e V e adianta a recarga do F
     abateu() {
-      const antes = this.spCd + this.fireCd + this.spinCd + this.goldCd;
-      this.spCd = Math.max(0, this.spCd - KILL_REFUND);
+      const antes = this.fireCd;
       this.fireCd = Math.max(0, this.fireCd - KILL_REFUND);
-      this.spinCd = Math.max(0, this.spinCd - KILL_REFUND);
-      this.goldCd = Math.max(0, this.goldCd - KILL_REFUND);
-      return antes !== this.spCd + this.fireCd + this.spinCd + this.goldCd;
+      return this.carrega(1) || antes !== this.fireCd;
+    }
+
+    // especial ainda travado: avisa quanto falta
+    bloqueado(g, falta) {
+      Sound.play('blocked');
+      const vs = g.modo() === 'vs';
+      g.say('FALTA' + (falta > 1 ? 'M ' : ' ') + falta + (vs ? ' DE DANO' : falta > 1 ? ' ABATES' : ' ABATE'), 50);
+    }
+
+    // avanca X, C e V em `n` (abates, ou pontos de dano no oponente no VS)
+    carrega(n) {
+      const antes = this.spCd + this.spinCd + this.goldCd;
+      this.spCd = Math.max(0, this.spCd - n);
+      this.spinCd = Math.max(0, this.spinCd - n);
+      this.goldCd = Math.max(0, this.goldCd - n);
+      return antes !== this.spCd + this.spinCd + this.goldCd;
     }
 
     elemento() { return ELEMENTS[CICLO_ELEM[this.elem % CICLO_ELEM.length]]; }
@@ -439,11 +447,11 @@
 
       // ---- giro de 360 (C): uma flecha em cada direcao ----
       if (i.hit('spin')) {
-        if (this.spinCd > 0) Sound.play('blocked');
+        if (this.spinCd > 0) this.bloqueado(g, this.spinCd);
         else {
           this.spin = SPIN_TIME;
           this.spinIdx = -1;
-          this.spinCd = SPIN_CD;
+          this.spinCd = this.spinMax;
           this.charging = false; this.charge = 0;
           this.spCharging = false; this.spCharge = 0;
           this.inv = Math.max(this.inv, SPIN_TIME);   // fica intocavel durante o giro
@@ -457,13 +465,13 @@
 
       // ---- flecha dourada (V): persegue e atravessa todos os inimigos ----
       if (i.hit('gold')) {
-        if (this.goldCd > 0) Sound.play('blocked');
+        if (this.goldCd > 0) this.bloqueado(g, this.goldCd);
         else this.soltarDourada(g);
       }
 
       // ---- ataque especial (X): salva de tres flechas ----
       if (i.hit('special') && !this.spCharging) {
-        if (this.spCd > 0) Sound.play('blocked');
+        if (this.spCd > 0) this.bloqueado(g, this.spCd);
         else {
           this.spCharging = true; this.spCharge = 0;
           this.charging = false; this.charge = 0;
@@ -508,7 +516,7 @@
 
     updateMago(g, i) {
       if (i.hit('spin')) {
-        if (this.spinCd > 0) Sound.play('blocked');
+        if (this.spinCd > 0) this.bloqueado(g, this.spinCd);
         else {
           this.escudo = MG_ESCUDO_T;
           this.spinCd = this.spinMax;
@@ -520,7 +528,7 @@
       const tipo = i.hit('special') ? 'raio' : i.hit('gold') ? 'fogo' : null;
       if (!tipo) return;
       const cd = tipo === 'raio' ? this.spCd : this.goldCd;
-      if (cd > 0) { Sound.play('blocked'); return; }
+      if (cd > 0) { this.bloqueado(g, cd); return; }
       this.golpeChao = { tipo, t: 0 };               // ergue o cajado; a batida vem depois
       Sound.play('cast');
     }
@@ -607,15 +615,15 @@
 
     updateKnight(g, i) {
       if (i.hit('spin')) {
-        if (this.spinCd > 0) Sound.play('blocked');
+        if (this.spinCd > 0) this.bloqueado(g, this.spinCd);
         else { this.iniciaGiro(g); return; }
       }
       if (i.hit('gold')) {
-        if (this.goldCd > 0) Sound.play('blocked');
+        if (this.goldCd > 0) this.bloqueado(g, this.goldCd);
         else if (this.iniciaRush(g)) return;
       }
       if (i.hit('special') && !this.spCharging) {
-        if (this.spCd > 0) Sound.play('blocked');
+        if (this.spCd > 0) this.bloqueado(g, this.spCd);
         else { this.spCharging = true; this.spCharge = 0; }
       }
       if (!this.spCharging) return;
@@ -838,7 +846,7 @@
       const cheia = this.spCharge / CHARGE_MAX >= 0.85;
       this.salva(g, cheia);
       if (cheia) { this.rajadas = SP_RAJADAS - 1; this.rajadaT = SP_RAJADA_T; }
-      this.spCd = SP_CD;
+      this.spCd = this.spMax;
       this.atk = BOW_TIME - BOW_FIRE;
       g.say(cheia ? 'CHUVA DE FLECHAS!' : 'SALVA DE FLECHAS!', 70);
     }
@@ -862,7 +870,7 @@
       const v = DIR_VEC[this.dir];
       const m = this.muzzle(12);
       g.addEnt(new GoldArrow(m[0], m[1], v[0] * GOLD_SPD, v[1] * GOLD_SPD, this.dano() * GOLD_MULT));
-      this.goldCd = GOLD_CD;
+      this.goldCd = this.goldMax;
       this.atk = BOW_TIME - BOW_FIRE;
       Sound.play('gold');
       g.particles.burst(m[0], m[1], 16, 1, 2.2, 18);
@@ -898,10 +906,7 @@
       if (this.inv > 0) this.inv--;
       if (this.hurtT > 0) this.hurtT--;
       if (this.rollCd > 0) this.rollCd--;
-      if (this.fireCd > 0) this.fireCd--;
-      if (this.spCd > 0) this.spCd--;
-      if (this.spinCd > 0) this.spinCd--;
-      if (this.goldCd > 0) this.goldCd--;
+      if (this.fireCd > 0) this.fireCd--;   // so o F tem recarga por tempo
 
       if (this.fogo > 0) { tickFogo(g, this); if (this.dead) return; }
       if (this.choque > 0) { tickChoque(g, this); if (this.dead) return; }
@@ -1090,7 +1095,10 @@
     }
 
     hurt(g, dmg, fx, fy) {
+      const autor = this.ultimoDono;
+      this.ultimoDono = null;
       if (this.inv > 0 || this.roll > 0 || this.dead || this.especialAtivo() || this.escudo > 0) return;
+      G.danoNoOponente(g, this, autor, Math.min(dmg, this.hp));
       this.hp -= dmg;
       this.inv = 64; this.hurtT = 40;
       const a = Math.atan2(this.cy - fy, this.cx - fx);
@@ -1229,6 +1237,7 @@
   // dano sem empurrao nem invencibilidade (queimadura, choque); conta o abate para quem lancou
   function danoDireto(g, e, n, dono) {
     if (e.dead || e.escudo > 0) return;
+    if (e instanceof Player) G.danoNoOponente(g, e, dono, Math.min(n, e.hp));
     e.hp -= n;
     e.hurtT = 6;
     if (dono) e.ultimoDono = dono;

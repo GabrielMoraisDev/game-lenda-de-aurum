@@ -674,6 +674,58 @@
     return level;
   };
 
+  /* ---------------- arenas do VS (uma sala fechada, sem saidas) ---------------- */
+
+  // simetricas (esquerda = direita espelhada), para nenhum lado sair na vantagem
+  const ARENAS = [
+    { id: 'campo', nome: 'CAMPO DE AURUM', music: 'field', tint: null,
+      piso: T.GRASS, piso2: T.GRASS2, borda: T.TREE, chao: T.PATH, obst: T.ROCK, extra: T.BUSH, agua: T.WATER },
+    { id: 'caverna', nome: 'CAVERNA DOS GOBLINS', music: 'dungeon', tint: 'rgba(0,0,30,0.12)',
+      piso: T.FLOOR, piso2: T.FLOOR2, borda: T.WALL, chao: T.CARPET, obst: T.BLOCK, extra: T.STATUE, agua: T.PIT, tocha: T.TORCH },
+    { id: 'pantano', nome: 'PANTANO SOMBRIO', music: 'pantano', tint: 'rgba(30,60,20,0.16)',
+      piso: T.BOG, piso2: T.BOG2, borda: T.DEAD_TREE, chao: T.MUD, obst: T.DEAD_TREE, extra: T.MUSHROOM, agua: T.SWAMP_WATER },
+    { id: 'castelo', nome: 'CASTELO SOMBRIO', music: 'castelo', tint: 'rgba(50,0,25,0.14)',
+      piso: T.CFLOOR, piso2: T.CFLOOR2, borda: T.CWALL, chao: T.CARPET, obst: T.PILLAR, extra: T.PILLAR, agua: T.LAVA, tocha: T.BANNER }
+  ];
+  G.ARENAS = ARENAS.map((a) => ({ id: a.id, nome: a.nome }));
+
+  G.genArena = function (seed, id) {
+    const A = ARENAS.find((a) => a.id === id) || ARENAS[0];
+    const r = G.mulberry32(seed + 424242);
+    const room = newRoom('arena');
+    // espelha tudo na horizontal
+    const par = (x, y, v) => { put(room, x, y, v); put(room, ROOM_W - 1 - x, y, v); };
+
+    fill(room, A.piso);
+    for (let y = 1; y < ROOM_H - 1; y++) {
+      for (let x = 1; x < MX; x++) if (r() < 0.12) par(x, y, A.piso2);
+    }
+    for (let x = 0; x < ROOM_W; x++) { put(room, x, 0, A.borda); put(room, x, ROOM_H - 1, A.borda); }
+    for (let y = 0; y < ROOM_H; y++) { put(room, 0, y, A.borda); put(room, ROOM_W - 1, y, A.borda); }
+    if (A.tocha) { par(4, 0, A.tocha); par(MX - 4, 0, A.tocha); }
+
+    // corredor do meio (onde os dois nascem) e centro livre
+    rect(room, 1, MY - 1, ROOM_W - 2, 2, A.chao);
+    rect(room, CX0, CY0, 4, 4, A.chao);
+
+    // coberturas: um bloco de cada lado, em cima e embaixo do corredor
+    [[5, 2], [5, ROOM_H - 4]].forEach(([x, y]) => { par(x, y, A.obst); par(x + 1, y, A.obst); par(x, y + 1, A.obst); });
+    par(MX - 3, 2, A.obst); par(MX - 3, ROOM_H - 3, A.obst);
+    // pocas (agua, buraco ou lava) nos cantos
+    [[2, 2], [2, ROOM_H - 4]].forEach(([x, y]) => { par(x, y, A.agua); par(x + 1, y, A.agua); par(x, y + 1, A.agua); });
+    // detalhes
+    par(9, 3, A.extra); par(9, ROOM_H - 4, A.extra);
+
+    room.meta.rx = 0; room.meta.ry = 0;
+    room.visited = true;
+    return {
+      id: 'arena', name: 'ARENA - ' + A.nome, kind: 'arena',
+      cols: 1, rows: 1, rooms: [room],
+      music: A.music, tint: A.tint,
+      start: { room: 0, x: 1 * TILE + 3, y: GAP_Y[0] * TILE + 3 }
+    };
+  };
+
   /* ---------------- render de sala com cache ---------------- */
 
   const CACHE_MAX = 16;

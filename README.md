@@ -9,9 +9,23 @@ canvases offscreen no boot, e a trilha sonora é sintetizada via Web Audio.
 Abra `index.html` no navegador (duplo clique já funciona — os scripts são clássicos, não módulos).
 Se preferir servidor local: `servir.bat` ou `python -m http.server 8080`.
 
+### Multijogador pela internet (GitHub Pages ou qualquer site estático)
+
+Sem servidor próprio: os dois navegadores se conectam direto (WebRTC, via [PeerJS](https://peerjs.com),
+carregado do CDN só quando você abre o multijogador; o servidor público do PeerJS só apresenta um ao outro).
+
+1. Quem hospeda aperta **N** no título, **CRIAR SALA**, escolhe o modo (no VS, também a arena) e o herói.
+   A tela mostra um **código de sala** de 5 letras (C copia o link `...?sala=CODIGO`).
+2. O outro jogador abre o jogo, aperta **N**, **ENTRAR NA SALA**, digita o código (ou abre o link, que já
+   vem com ele) e escolhe o herói. A partida começa sozinha.
+
+Precisa de internet nos dois. Em algumas redes muito fechadas (NAT simétrico, firewall de empresa) a conexão
+direta pode não sair, porque não há servidor TURN.
+
 ### Multijogador em rede local (2 jogadores)
 
-Precisa do [Node.js](https://nodejs.org) no PC de quem hospeda (sem pacotes extras).
+Precisa do [Node.js](https://nodejs.org) no PC de quem hospeda (sem pacotes extras). Quando o jogo é aberto
+pelo `servidor.js`, ele percebe (rota `/aurum-servidor`) e usa o WebSocket local em vez do código de sala.
 
 1. No PC que hospeda, rode `servir.bat` (ou `node servidor.js`). O terminal mostra os endereços,
    por exemplo `http://192.168.1.100:8080/`. Na primeira vez o Windows pergunta sobre o firewall:
@@ -25,7 +39,7 @@ Precisa do [Node.js](https://nodejs.org) no PC de quem hospeda (sem pacotes extr
 |---|---|
 | **Cooperativo** | O jogo normal com os dois. Quem cair volta em 4 s ao lado do parceiro; se os dois caírem, é fim de jogo. Chaves e fragmentos valem para o grupo. |
 | **Competitivo** | 3 minutos: quem matar mais bichos vence. Aparecem inimigos novos o tempo todo na sala (até 6 vivos). Quem cair volta em 3 s. Placar e cronômetro no topo da tela. |
-| **VS** | Um contra o outro na sala inicial, sem monstros, com **10 corações** cada. Todos os ataques e especiais acertam o oponente (onda de choque tira 2 corações, a explosão da bola de fogo 3). |
+| **VS** | Um contra o outro numa **arena fechada** (sem saídas), escolhida por quem cria a sala: Campo de Aurum, Caverna dos Goblins, Pântano Sombrio ou Castelo Sombrio. Sem monstros, **20 de vida** cada, mostrada em **barra** (no HUD e no placar do topo). Todos os ataques e especiais acertam o oponente (onda de choque tira 4, a explosão da bola de fogo 6). X, C e V liberam com o **dano causado no oponente**: 3, 6 e 10 pontos de vida tirados. |
 
 No fim do competitivo e do VS, o anfitrião aperta ENTER para jogar de novo ou ESC para sair.
 
@@ -42,10 +56,10 @@ o jogador 1 e uma azul o jogador 2. O multijogador não mexe no save do modo sol
 | Mover (8 direções, com diagonais) | WASD / setas | direcional ou analógico | d-pad na tela |
 | Atacar (espada, flecha ou magia) | J ou Z | A / X | botão A |
 | Rolar / dash (invulnerável; 2× mais longo no arqueiro) | Espaço, K ou Shift | B / RB | botão ROL |
-| **Habilidade especial** (recarga de 60 s) | F | Y / RT | botão F |
-| **Salva de flechas** (arqueiro, 2 s; segure para 4 salvas) / **Investida** (guerreiro, 4 s; segure para carregar) / **Tempestade de raios** (mago, 5 s) | X | LT / LB | botão X |
-| **4 giros de 360°** (arqueiro, 3 s) / **Giro triplo** (guerreiro, 6 s) / **Escudo** (mago, 7 s) | C | RB / R3 | botão C |
-| **Flecha dourada** (arqueiro, 10 s) / **Investida relâmpago** (guerreiro, 10 s) / **Inferno** (mago, 10 s) | V | L3 | botão V |
+| **Habilidade especial** (recarga de 60 s, a única com recarga) | F | Y / RT | botão F |
+| **Salva de flechas** (arqueiro; segure para 4 salvas) / **Investida** (guerreiro; segure para carregar) / **Tempestade de raios** (mago) — libera com **3 abates** | X | LT / LB | botão X |
+| **4 giros de 360°** (arqueiro) / **Giro triplo** (guerreiro) / **Escudo** (mago) — libera com **6 abates** | C | RB / R3 | botão C |
+| **Flecha dourada** (arqueiro) / **Investida relâmpago** (guerreiro) / **Inferno** (mago) — libera com **10 abates** | V | L3 | botão V |
 | Escolher herói / confirmar | setas + Enter | direcional + Start | d-pad + ≡ |
 | Começar / continuar | Enter | Start | ≡ |
 | Pausa e mapa | Esc ou P | Select | ≡ |
@@ -94,7 +108,7 @@ avança, e terminando de sumir depois que ela para (8 → 7 → … → 0).
 
 ### Salva de três flechas — tecla X (arqueiro)
 
-Ataque especial com **2 segundos de recarga**, mostrado como barra verde no HUD e na pausa.
+Ataque especial que libera com **3 abates** (barra verde no HUD e na pausa).
 Dispara **três flechas lado a lado**, uma por bloco (16 px de distância entre elas), cobrindo uma
 parede de 3 blocos de altura quando você olha para os lados. As flechas da salva **sempre vão até o
 fim da sala** (só param na parede ou na borda), sem precisar carregar.
@@ -113,7 +127,7 @@ estabilizam depois disso.
 O herói dá **4 voltas** no lugar, soltando **uma flecha em cada uma das 8 direções por volta** (direita,
 diagonal, baixo, diagonal, esquerda, e assim por diante), uma a cada 3 quadros: **32 flechas em 1,6 s**,
 4 em cada direção. Alcance de 120 px por flecha (7,5 blocos), dano de flecha normal, e o herói fica
-**invulnerável durante o giro**. Recarga de **3 segundos**, barra roxa no HUD.
+**invulnerável durante o giro**. Libera com **6 abates**, barra roxa no HUD.
 
 Serve para quando você é cercado: num teste com 8 inimigos em círculo ao redor, todos os 8 foram
 atingidos.
@@ -124,7 +138,7 @@ Solta uma flecha de ouro na direção encarada que **persegue o inimigo mais pr�
 até ele e atravessa paredes. Ao acertar, escolhe o próximo inimigo vivo que ainda não atingiu, e assim
 por diante até **acertar todos os inimigos da sala** — então some num brilho dourado. Cada inimigo
 leva **3× o dano de uma flecha comum** (3 no início, 6 com o fragmento), uma vez só. Sem inimigos na
-sala, voa reto 160 px e some. Recarga de **10 segundos**, barra dourada no meio do HUD.
+sala, voa reto 160 px e some. Libera com **10 abates**, barra dourada no HUD.
 
 ### Magia elemental (mago)
 
@@ -145,14 +159,14 @@ Abates pela queimadura contam para quem lançou o fogo no competitivo.
 
 ### Habilidades do mago — X, C e V
 
-| Tecla | Habilidade | O que faz | Recarga |
+| Tecla | Habilidade | O que faz | Libera com |
 |---|---|---|---|
-| **X** | Tempestade de raios | Ergue o cajado e bate no chão: saem raios do mago até **todos os inimigos da sala**, que ficam **eletrocutados por 3 s** — paralisados e levando 1 de dano a cada 0,5 s (6 no total) | 5 s |
-| **C** | Escudo arcano | Uma bolha azul em volta do mago: **invulnerável por 5 s** (nada causa dano, nem queimadura ou choque); pisca no último 1,5 s | 7 s |
-| **V** | Inferno | Ergue o cajado e bate no chão: um anel de fogo sai do mago e **todos os inimigos pegam fogo e morrem** em 1 s | 10 s |
+| **X** | Tempestade de raios | Ergue o cajado e bate no chão: saem raios do mago até **todos os inimigos da sala**, que ficam **eletrocutados por 3 s** — paralisados e levando 1 de dano a cada 0,5 s (6 no total) | 3 abates |
+| **C** | Escudo arcano | Uma bolha azul em volta do mago: **invulnerável por 5 s** (nada causa dano, nem queimadura ou choque); pisca no último 1,5 s | 6 abates |
+| **V** | Inferno | Ergue o cajado e bate no chão: um anel de fogo sai do mago e **todos os inimigos pegam fogo e morrem** em 1 s | 10 abates |
 
-O golpe no chão leva 1/3 de segundo erguendo o cajado; levar dano nesse meio cancela sem gastar a
-recarga. Chefes resistem como nas outras habilidades de sala: no X ficam paralisados só 1 s (mas levam o
+O golpe no chão leva 1/3 de segundo erguendo o cajado; levar dano nesse meio cancela sem gastar o
+especial. Chefes resistem como nas outras habilidades de sala: no X ficam paralisados só 1 s (mas levam o
 choque inteiro) e no V levam 1/3 da vida e queimam. No VS o oponente é eletrocutado com metade do dano e,
 no V, só pega fogo.
 
@@ -167,21 +181,21 @@ quatro diagonais em 3/4), mais duas poses de golpe por direção (preparação e
 
 ### Especiais do guerreiro — X, C e V
 
-Mesmas teclas do arqueiro, com barras no HUD e tempos na pausa. A investida (X) e a investida
+Mesmas teclas do arqueiro, com barras no HUD e abates que faltam na pausa. A investida (X) e a investida
 relâmpago (V) deixam o guerreiro **invulnerável por 3 s, piscando**, contados a partir do golpe. Durante qualquer um dos três o
 guerreiro fica intocável, e nenhum deles troca de sala nem pega escada no meio.
 
-| Tecla | Especial | O que faz | Dano | Recarga |
+| Tecla | Especial | O que faz | Dano | Libera com |
 |---|---|---|---|---|
-| X (tapa) | Investida | dash com a espada à frente, 4 blocos (64 px) | 1× a espada | 4 s |
-| X (segurado) | Investida longa | segure até a barra aparecer (1 s): ao soltar, atravessa a sala até a parede ou a borda | 1× | 4 s |
-| X (barra cheia, 1,5 s) | Investida máxima | igual à longa | **3×** | 4 s |
-| C | Giro triplo | 3 voltas de 360° com a espada; cada volta acerta de novo | **2×** por volta | 6 s |
-| V | Investida relâmpago | avança em cada inimigo da sala, um por vez (sempre o mais próximo), atravessando paredes | **4×** em cada | 10 s |
+| X (tapa) | Investida | dash com a espada à frente, 4 blocos (64 px) | 1× a espada | 3 abates |
+| X (segurado) | Investida longa | segure até a barra aparecer (1 s): ao soltar, atravessa a sala até a parede ou a borda | 1× | 3 abates |
+| X (barra cheia, 1,5 s) | Investida máxima | igual à longa | **3×** | 3 abates |
+| C | Giro triplo | 3 voltas de 360° com a espada; cada volta acerta de novo | **2×** por volta | 6 abates |
+| V | Investida relâmpago | avança em cada inimigo da sala, um por vez (sempre o mais próximo), atravessando paredes | **4×** em cada | 10 abates |
 
 Na investida cada inimigo leva o golpe uma vez. A relâmpago termina onde caiu o último inimigo;
 se esse lugar for parede ou buraco, o guerreiro volta ao ponto de partida. Sem inimigos na sala ela
-não sai e não gasta a recarga. Enquanto segura o X o guerreiro anda devagar e mira com a espada.
+não sai e não gasta o especial. Enquanto segura o X o guerreiro anda devagar e mira com a espada.
 
 ### O golpe de espada
 
@@ -222,11 +236,25 @@ alcança** — num teste, alvos a 20, 60, 110 e 160 px morreram nos quadros 5, 1
 círculo chega nas paredes, não sobrou nada vivo: inimigos nos quatro cantos da sala morrem todos.
 **Chefes não morrem** — levam o mesmo 1/3 da vida máxima das outras habilidades e continuam de pé.
 
-### Recarga por abate
+### X, C e V liberam por abate
 
-Cada inimigo morto **adianta 0,5 s** em todas as recargas ao mesmo tempo — a habilidade do F, a
-salva do X, o giro do C e a flecha dourada do V. As barras do HUD piscam em branco no momento do abate. Limpar uma sala de 8 inimigos devolve
-4 segundos: mais que basta para zerar a recarga da salva (3,0 s) ou do giro (5,0 s) de uma vez.
+X, C e V **não têm recarga por tempo**. Cada um tem um contador de abates desde a última vez que foi usado:
+
+| Tecla | Abates para liberar |
+|---|---|
+| X | 3 |
+| C | 6 |
+| V | 10 |
+
+Liberado, o especial fica pronto (barra cheia e **OK** no HUD) até você usar; ao usar, o contador daquele
+especial volta a zero e os outros continuam contando. O jogo começa com os três travados. Apertar um travado
+avisa quanto falta. No HUD cada um mostra `abates/necessários`; a pausa mostra quanto falta.
+
+No **VS** não há monstros: cada ponto de vida tirado do oponente conta como um abate (tirar 3 de vida libera
+o X, e assim por diante).
+
+Só o **F** tem recarga (60 s). Cada inimigo morto ainda **adianta 0,5 s** dessa recarga. As barras do HUD
+piscam em branco no momento do abate.
 
 ## O jogo
 
@@ -328,11 +356,12 @@ sombra. Cada tile estático tem **3 variações** escolhidas pela posição na s
 
 ```
 index.html      carrega os 6 scripts na ordem e chama AURUM.boot()
-servidor.js     (Node) serve os arquivos e repassa as mensagens do multijogador via WebSocket
+servidor.js     (Node) serve os arquivos e repassa as mensagens do multijogador via WebSocket (rede local)
 style.css       layout, escala pixelada, botões de toque
 src/core.js     matemática, input (teclado/gamepad/toque), áudio sintetizado,
                 sequenciador de música, sistema de partículas
-src/net.js      cliente de rede: conexão, entrada remota do jogador 2, eco de sons e música
+src/net.js      cliente de rede: WebSocket (servidor.js) ou WebRTC com código de sala (site estático),
+                entrada remota do jogador 2, eco de sons e música
 src/art.js      geração de todos os tiles e sprites em canvases offscreen
 src/world.js    tiles, colisão, geração do mundo aberto e das masmorras, cache de sala
 src/entities.js jogador, inimigos, chefes, projéteis, itens e baús
@@ -355,15 +384,18 @@ src/game.js     máquina de estados, transições, HUD, save, loop principal, mo
 
 - Classes do jogador: tabela `CLASSES` (vida, velocidade, dano, `dash` do rolamento, textos) e `ELEMENTS` (magias do mago) em `src/entities.js`.
 - Tiro do arqueiro: `ATK_CHARGE_MAX`/`ATK_CHARGE_BAR` (tiro normal, Z) e `CHARGE_MAX`/`CHARGE_BAR` (especial, X), além de `ARROW_SPD`, `ARROW_RANGE`, `ARROW_SCALE`, `ARROW_SCALE_END` e `ARROW_ECHO` em `src/entities.js`.
-- Salva do X: `SP_CD` (recarga), `SP_RANGE_FULL` (alcance), `SP_RAJADAS`/`SP_RAJADA_T` (salvas da carga cheia e intervalo), `SP_SHRINK_FULL` e `SP_SPACING` em `src/entities.js`.
-- Giro do C: `SPIN_CD`, `SPIN_VOLTAS`, `SPIN_TIME`, `SPIN_RANGE` e `SPIN_DIRS` em `src/entities.js`.
-- Flecha dourada do V: `GOLD_CD`, `GOLD_SPD`, `GOLD_TURN`, `GOLD_MULT`, `GOLD_LIFE` e `GOLD_FREE` em `src/entities.js`.
+- Abates para liberar X, C e V: `ABATES_X`, `ABATES_C` e `ABATES_V` em `src/entities.js`.
+- Salva do X: `SP_RANGE_FULL` (alcance), `SP_RAJADAS`/`SP_RAJADA_T` (salvas da carga cheia e intervalo), `SP_SHRINK_FULL` e `SP_SPACING` em `src/entities.js`.
+- Giro do C: `SPIN_VOLTAS`, `SPIN_TIME`, `SPIN_RANGE` e `SPIN_DIRS` em `src/entities.js`.
+- Flecha dourada do V: `GOLD_SPD`, `GOLD_TURN`, `GOLD_MULT`, `GOLD_LIFE` e `GOLD_FREE` em `src/entities.js`.
 - Especiais do guerreiro: `KN_DASH_*` (investida, X), `KN_GIRO_*` (giro triplo, C) e `KN_RUSH_*` (investida relâmpago, V) em `src/entities.js`.
+- Arenas do VS: `ARENAS` e `genArena` em `src/world.js`.
+- Multijogador pela internet: `PEERJS_URL`, `TAM_CODIGO` e `SILENCIO` (tempo sem resposta até considerar que o outro saiu) em `src/net.js`.
 - Multijogador: `COMP_TEMPO`, `COMP_MAX`, `COMP_SPAWN`, `COMP_TIPOS`, `VS_HP` e `RESPAWN_*` em `src/game.js`; dano da onda e da explosão no VS em `PVP_WAVE`/`PVP_NOVA` (`src/entities.js`); porta do servidor com `PORT=9000 node servidor.js`.
 - Empurrão da flecha: `EMPURRA_FLECHA` (multiplicador do tiro normal) e `EMPURRA_TOTAL_VEL` (velocidade do arrasto da carga cheia) em `src/entities.js`.
-- Magias do mago: `CICLO_ELEM` (ordem ponderada dos elementos), `MG_*` (X, C e V: recargas e durações), `ELEMENTS` (dano e velocidade), `GELO_T`, `FOGO_T`/`FOGO_TICK`, `RAIO_T`, `RAIO_ALCANCE`, `RAIO_SALTOS`, `EFEITO_CHEFE`, `EFEITO_JOGADOR` e `MAGIA_SOLTA` (momento do golpe em que a magia sai) em `src/entities.js`.
+- Magias do mago: `CICLO_ELEM` (ordem ponderada dos elementos), `MG_*` (X, C e V: durações), `ELEMENTS` (dano e velocidade), `GELO_T`, `FOGO_T`/`FOGO_TICK`, `RAIO_T`, `RAIO_ALCANCE`, `RAIO_SALTOS`, `EFEITO_CHEFE`, `EFEITO_JOGADOR` e `MAGIA_SOLTA` (momento do golpe em que a magia sai) em `src/entities.js`.
 - Onda de choque: `WAVE_SPEED` e `WAVE_MAX` em `src/entities.js`.
-- Desconto de recarga por abate: `KILL_REFUND` em `src/entities.js` (em frames, 30 = 0,5 s).
+- Desconto da recarga do F por abate: `KILL_REFUND` em `src/entities.js` (em frames, 30 = 0,5 s).
 - Dificuldade dos inimigos: `spd`, `hp` e `touch` das classes em `src/entities.js`.
 - Quais inimigos aparecem onde: tabelas de `sorteia` em `genOverworld`/`genPantano`, `ESTILOS` (masmorras e castelo) e salas de chefe em `CHEFES_OW`/`CHEFES_PT` (`src/world.js`).
 - Tamanho do mundo: `OW_COLS`/`OW_ROWS` e `DG_COLS`/`DG_ROWS` em `src/world.js`.

@@ -29,6 +29,11 @@ function ipsDaRede() {
 
 const server = http.createServer((req, res) => {
   let rel = decodeURIComponent((req.url || '/').split('?')[0]);
+  if (rel === '/aurum-servidor') {                 // o jogo pergunta: tem servidor? entao usa WebSocket
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+    res.end(JSON.stringify({ aurum: true, porta: PORTA }));
+    return;
+  }
   if (rel === '/') rel = '/index.html';
   const arq = path.normalize(path.join(RAIZ, rel));
   if (!arq.startsWith(RAIZ + path.sep)) { res.writeHead(403); res.end(); return; }

@@ -15,7 +15,7 @@
   const MODOS = [
     { id: 'coop', nome: 'COOPERATIVO', desc: 'OS DOIS JUNTOS NO JOGO NORMAL' },
     { id: 'comp', nome: 'COMPETITIVO', desc: 'QUEM MATA MAIS BICHOS EM 3 MINUTOS' },
-    { id: 'vs', nome: 'VS', desc: 'UM CONTRA O OUTRO, 10 CORACOES CADA' }
+    { id: 'vs', nome: 'VS', desc: 'UM CONTRA O OUTRO NUMA ARENA, 20 DE VIDA' }
   ];
   const COMP_TEMPO = 180 * 60;          // competitivo: 3 minutos
   const COMP_MAX = 6;                   // competitivo: inimigos vivos na sala
@@ -24,7 +24,7 @@
     field: ['goblin', 'archer', 'bat', 'slime', 'machadeiro'], dungeon: ['skeleton', 'ghost', 'knight', 'bat'],
     pantano: ['sapo', 'mosquito', 'bruxa', 'slime'], castelo: ['lanceiro', 'besteiro', 'feiticeiro', 'knight']
   };
-  const VS_HP = 20;                     // VS: 10 coracoes
+  const VS_HP = 20;                     // VS: 20 de vida, mostrada em barra
   const RESPAWN_COOP = 240, RESPAWN_COMP = 180;
   const COR_P = ['#ffd34d', '#5ce1ff'];  // marcador do jogador 1 e 2
   const BRANCO_CHEIO = 24, BRANCO_FADE = 72;   // meteoro: quadros de branco total e de fade
@@ -80,7 +80,9 @@
     newGame(seed, cls, p2cls) {
       this.seed = seed || ((Math.random() * 1e9) | 0);
       this.cls = G.CLASSES[cls] ? cls : (this.cls || 'guerreiro');
-      this.levels = {
+      const vs = this.modo() === 'vs';
+      // VS: so a arena escolhida, uma sala fechada
+      this.levels = vs ? { arena: G.genArena(this.seed, this.mp.arena) } : {
         overworld: G.genOverworld(this.seed),
         dungeon0: G.genDungeon(this.seed, 0),
         dungeon1: G.genDungeon(this.seed, 1),
@@ -98,23 +100,22 @@
         this.player2 = p2;
         this.players.push(p2);
       }
-      const vs = this.modo() === 'vs';
       if (vs) for (const p of this.players) { p.maxhp = VS_HP; p.hp = VS_HP; }
       this.tempo = this.modo() === 'comp' ? COMP_TEMPO : 0;
       this.spawnT = COMP_SPAWN;
       this.vencedor = null;
-      const ow = this.levels.overworld;
-      this.enterLevel('overworld', ow.start.room, ow.start.x, ow.start.y);
+      const id = vs ? 'arena' : 'overworld', ini = this.levels[id].start;
+      this.enterLevel(id, ini.room, ini.x, ini.y);
       this.state = 'play';
       if (vs) this.montaArena();
       const m = this.modo();
-      this.say(m === 'vs' ? 'VS! 10 CORACOES CADA' : m === 'comp' ? 'COMPETITIVO: 3 MINUTOS!'
+      this.say(m === 'vs' ? 'VS! ' + this.level.name.replace('ARENA - ', '') + '\nDANO NO OPONENTE LIBERA X, C E V' : m === 'comp' ? 'COMPETITIVO: 3 MINUTOS!'
         : m === 'coop' ? 'COOPERATIVO' : this.player.def.nome + ' DE AURUM\nCHEFES E CAVERNAS ESTAO NO MAPA (ESC)', 200);
     }
 
     modo() { return this.mp && this.mp.papel === 'host' ? this.mp.modo : null; }
 
-    // VS: sala inicial sem monstros, cada um de um lado
+    // VS: arena sem monstros, cada um de um lado
     montaArena() {
       this.ents = this.ents.filter((e) => !e.enemy);
       const y = GAP_Y[0] * TILE + 3;
@@ -658,7 +659,8 @@
       }
       if (this.remoteInput) this.remoteInput.endFrame();
 
-      if (this.input.hit('mute')) { const on = Sound.toggle(); this.say(on ? 'SOM LIGADO' : 'SOM DESLIGADO', 80); }
+      const digitando = this.state === 'lobby' && this.lobby && this.lobby.etapa === 'codigo';
+      if (this.input.hit('mute') && !digitando) { const on = Sound.toggle(); this.say(on ? 'SOM LIGADO' : 'SOM DESLIGADO', 80); }
       if (this.input.hit('debug')) this.showFps = !this.showFps;
       this.input.endFrame();
     }
@@ -826,14 +828,42 @@
     /* ---------------- multijogador ---------------- */
 
     abrirLobby() {
-      this.lobby = { etapa: 'menu', sel: 0, msg: '' };
-      if (!Net.disponivel()) { this.lobby.etapa = 'erro'; this.lobby.msg = 'ABRA O JOGO PELO SERVIR.BAT'; }
+      const codigo = Net.codigoDoLink();
+      this.lobby = { etapa: 'menu', sel: codigo ? 1 : 0, msg: '', codigo, transporte: Net.transporte };
+      if (!Net.disponivel()) { this.lobby.etapa = 'erro'; this.lobby.msg = 'NAVEGADOR SEM SUPORTE A REDE'; }
+      const L = this.lobby;
+      Net.detectar().then((t) => { L.transporte = t; });
       this.state = 'lobby';
+    }
+
+    // convidado pela internet: digita o codigo da sala (teclado) ou recebe pelo link
+    digitaCodigo(e) {
+      const L = this.lobby;
+      if (this.state !== 'lobby' || !L || L.etapa !== 'codigo') return false;
+      if (e.code === 'Backspace') { L.codigo = L.codigo.slice(0, -1); return true; }
+      if (e.code === 'Escape') { L.etapa = 'menu'; L.sel = 1; Sound.play('blocked'); return true; }
+      const k = (e.key || '').toUpperCase();
+      if (k.length === 1 && /[A-Z0-9]/.test(k)) {
+        if (L.codigo.length < Net.TAM_CODIGO) { L.codigo += k; Sound.play('menu'); }
+        return true;
+      }
+      return e.code !== 'Enter' && e.code !== 'NumpadEnter';   // Enter segue para o input normal
     }
 
     stepLobby() {
       const i = this.input, L = this.lobby;
-      const opcoes = L.etapa === 'menu' ? 3 : L.etapa === 'modo' ? MODOS.length : 0;
+      if (L.etapa === 'codigo') {
+        if (!i.hit('start')) return;
+        if (L.codigo.length === Net.TAM_CODIGO) { Sound.play('menu'); this.abrirSelecao(); return; }
+        if (i.touch && window.prompt) {                // celular: teclado do sistema
+          const v = window.prompt('Codigo da sala (' + Net.TAM_CODIGO + ' letras):', L.codigo) || '';
+          L.codigo = v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, Net.TAM_CODIGO);
+          if (L.codigo.length === Net.TAM_CODIGO) this.abrirSelecao();
+        } else Sound.play('blocked');
+        return;
+      }
+      if (L.etapa === 'espera' && i.hit('spin') && Net.codigo) { this.copiaLink(); return; }
+      const opcoes = L.etapa === 'menu' ? 3 : L.etapa === 'modo' ? MODOS.length : L.etapa === 'arena' ? G.ARENAS.length : 0;
       if (opcoes) {
         if (i.hit('up')) { L.sel = (L.sel + opcoes - 1) % opcoes; Sound.play('menu'); }
         if (i.hit('down')) { L.sel = (L.sel + 1) % opcoes; Sound.play('menu'); }
@@ -842,6 +872,7 @@
       if (i.hit('pause')) {
         Sound.play('blocked');
         if (L.etapa === 'modo') { L.etapa = 'menu'; L.sel = 0; return; }
+        if (L.etapa === 'arena') { L.etapa = 'modo'; L.sel = MODOS.findIndex((m) => m.id === 'vs'); return; }
         this.sairRede();
         this.state = 'title';
         return;
@@ -850,11 +881,20 @@
       if (L.etapa === 'menu') {
         Sound.play('menu');
         if (L.sel === 0) { L.etapa = 'modo'; L.sel = 0; }
-        else if (L.sel === 1) { L.papel = 'guest'; this.abrirSelecao(); }
-        else { this.lobby = null; this.state = 'title'; }
+        else if (L.sel === 1) {
+          L.papel = 'guest';
+          // pela internet precisa do codigo da sala; na rede local o servidor ja sabe qual e
+          if (L.transporte === 'ws') this.abrirSelecao();
+          else { L.etapa = 'codigo'; L.codigo = L.codigo || ''; }
+        } else { this.lobby = null; this.state = 'title'; }
       } else if (L.etapa === 'modo') {
         Sound.play('menu');
         L.papel = 'host'; L.modo = MODOS[L.sel].id;
+        if (L.modo === 'vs') { L.etapa = 'arena'; L.sel = 0; }
+        else this.abrirSelecao();
+      } else if (L.etapa === 'arena') {
+        Sound.play('menu');
+        L.arena = G.ARENAS[L.sel].id;
         this.abrirSelecao();
       } else if (L.etapa === 'erro') {
         this.sairRede();
@@ -862,22 +902,33 @@
       }
     }
 
+    copiaLink() {
+      const L = this.lobby, link = Net.linkDaSala();
+      const ok = () => { L.copiado = 120; Sound.play('coin'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(ok, () => Sound.play('blocked'));
+      else Sound.play('blocked');
+    }
+
     iniciarRede(cls) {
       const L = this.lobby;
       L.cls = cls;
+      L.etapa = 'conectando';
       this.state = 'lobby';
-      if (L.papel === 'host') {
-        L.etapa = 'espera';
-        Net.conectar({ t: 'criar', modo: L.modo }, (m) => this.msgRede(m), () => this.fimRede());
-      } else {
-        L.etapa = 'conectando';
-        Net.conectar({ t: 'entrar', cls }, (m) => this.msgRede(m), () => this.fimRede());
-      }
+      Net.detectar().then((t) => {
+        if (this.lobby !== L) return;
+        L.transporte = t;
+        if (L.papel === 'host') {
+          L.etapa = 'espera';
+          Net.conectar({ t: 'criar', modo: L.modo }, (m) => this.msgRede(m), () => this.fimRede());
+        } else {
+          Net.conectar({ t: 'entrar', cls, codigo: L.codigo }, (m) => this.msgRede(m), () => this.fimRede());
+        }
+      });
     }
 
     comecarMulti(p2cls) {
       const L = this.lobby;
-      this.mp = { modo: L.modo, papel: 'host', p1: L.cls, p2: p2cls };
+      this.mp = { modo: L.modo, papel: 'host', p1: L.cls, p2: p2cls, arena: L.arena };
       this.remoteInput = new G.RemoteInput();
       Net.eco = true;
       this.newGame(null, L.cls, p2cls);
@@ -898,6 +949,7 @@
           if (this.remoteInput) this.remoteInput.receber(m);
           break;
         case 'sala': if (L) L.modo = m.modo; break;
+        case 'codigo': if (L) L.codigo = m.codigo; break;   // p2p: codigo da sala do anfitriao
         case 'inicio':          // convidado: o jogo comecou
           this.mp = { modo: L ? L.modo : null, papel: 'guest' };
           this.quadro = null;
@@ -961,10 +1013,11 @@
       if (!this.mp || this.mp.papel !== 'host' || !this.player2 || this.enviando || (this.tick & 1) || !Net.folga()) return;
       this.renderEm(this.streamCtx, this.player2);
       this.enviando = true;
+      const [tipo, qualidade] = Net.formatoQuadro();
       this.streamCanvas.toBlob((b) => {
         this.enviando = false;
         if (b) Net.enviarBin(b);
-      }, 'image/png');
+      }, tipo, qualidade);
     }
 
     // fim de partida (competitivo e VS): ENTER joga de novo, ESC sai
@@ -1142,12 +1195,18 @@
       c.fillStyle = '#2a2a3a';
       c.fillRect(0, HUD_H - 2, VIEW_W, 2);
 
-      // coracoes
-      const hearts = Math.ceil(p.maxhp / 2);
-      for (let i = 0; i < hearts; i++) {
-        const left = p.hp - i * 2;
-        const img = S.heartHud[left >= 2 ? 2 : left === 1 ? 1 : 0];
-        c.drawImage(img, 6 + (i % 10) * 9, 5 + ((i / 10) | 0) * 9);
+      if (this.modo() === 'vs') {
+        // VS: vida em barra (20 pontos), sem coracoes
+        this.barraVida(c, 6, 6, 96, 8, p);
+        this.text(c, 'VIDA ' + Math.max(0, p.hp) + '/' + p.maxhp, 6, 24, COR_P[p.num - 1]);
+      } else {
+        // coracoes
+        const hearts = Math.ceil(p.maxhp / 2);
+        for (let i = 0; i < hearts; i++) {
+          const left = p.hp - i * 2;
+          const img = S.heartHud[left >= 2 ? 2 : left === 1 ? 1 : 0];
+          c.drawImage(img, 6 + (i % 10) * 9, 5 + ((i / 10) | 0) * 9);
+        }
       }
 
       // moedas / chaves / fragmentos
@@ -1178,33 +1237,19 @@
         this.text(c, Math.ceil(p.fireCd / 60) + 's', FX + 8, 31, '#8f96a8', 'center');
       }
 
-      const temXCV = true;                        // as tres classes tem X, C e V
-      if (temXCV) {                                // recarga do giro (C)
-        const pronto = p.spinCd === 0;
-        this.text(c, 'C', 160, 30, pronto ? '#b45cff' : '#5c667e');
-        c.fillStyle = '#2a2a3a'; c.fillRect(168, 26, 22, 4);
-        c.fillStyle = pulso ? '#ffffff' : pronto ? '#b45cff' : '#5a3a7a';
-        c.fillRect(168, 26, Math.round(22 * (1 - p.spinCd / p.spinMax)), 4);
-        if (!pronto) this.text(c, Math.ceil(p.spinCd / 60) + 's', 194, 30, '#5c667e');
-      }
-
-      if (temXCV) {                                // recarga da flecha dourada / investida relampago (V)
-        const pronto = p.goldCd === 0;
-        this.text(c, 'V', 222, 30, pronto ? '#ffd34d' : '#5c667e');
-        c.fillStyle = '#2a2a3a'; c.fillRect(230, 26, 22, 4);
-        c.fillStyle = pulso ? '#ffffff' : pronto ? '#ffd34d' : '#8a6a1f';
-        c.fillRect(230, 26, Math.round(22 * (1 - p.goldCd / p.goldMax)), 4);
-        if (!pronto) this.text(c, Math.ceil(p.goldCd / 60) + 's', 256, 30, '#5c667e');
-      }
-
-      if (temXCV) {                                // recarga do especial (X)
-        const pronto = p.spCd === 0;
-        this.text(c, 'X', 284, 30, pronto ? '#7fd858' : '#5c667e');
-        c.fillStyle = '#2a2a3a'; c.fillRect(292, 26, 22, 4);
-        c.fillStyle = pulso ? '#ffffff' : pronto ? '#7fd858' : '#4a7a3a';
-        c.fillRect(292, 26, Math.round(22 * (1 - p.spCd / p.spMax)), 4);
-        if (!pronto) this.text(c, Math.ceil(p.spCd / 60) + 's', 318, 30, '#5c667e');
-      }
+      // X, C e V: barra enche com os abates (no VS, com o dano no oponente); cheia = pronto
+      const slot = (tecla, x, falta, max, cor, corEsc) => {
+        const pronto = falta === 0;
+        this.text(c, tecla, x, 30, pronto ? cor : '#5c667e');
+        c.fillStyle = '#2a2a3a'; c.fillRect(x + 8, 26, 22, 4);
+        c.fillStyle = pulso ? '#ffffff' : pronto ? cor : corEsc;
+        c.fillRect(x + 8, 26, Math.round(22 * (1 - falta / max)), 4);
+        if (pronto) { if ((this.tick >> 4) & 1) this.text(c, 'OK', x + 34, 30, cor); }
+        else this.text(c, (max - falta) + '/' + max, x + 34, 30, '#5c667e');
+      };
+      slot('X', 160, p.spCd, p.spMax, '#7fd858', '#4a7a3a');
+      slot('C', 222, p.spinCd, p.spinMax, '#b45cff', '#5a3a7a');
+      slot('V', 284, p.goldCd, p.goldMax, '#ffd34d', '#8a6a1f');
 
       if (p.def.modo === 'magic') {
         const e = p.elemento(), r = p.elementoRestante();
@@ -1217,8 +1262,23 @@
       if (this.room && this.level) {
         const m = this.room.meta;
         const sala = this.level.kind === 'dungeon' ? 'SALA ' + (m.rx + 1) + '-' + (m.ry + 1) : 'X' + (m.rx + 1) + ' Y' + (m.ry + 1);
-        this.text(c, sala + '  ' + this.level.name, 6, 28, '#8f96a8');
+        if (this.level.kind !== 'arena') this.text(c, sala + '  ' + this.level.name, 6, 28, '#8f96a8');
       }
+    }
+
+    // barra de vida do VS; pisca em vermelho claro quando esta baixa
+    barraVida(c, x, y, w, h, p, direita) {
+      const f = Math.max(0, Math.min(1, p.hp / p.maxhp));
+      const cheio = Math.round(w * f);
+      c.fillStyle = '#000'; c.fillRect(x - 1, y - 1, w + 2, h + 2);
+      c.fillStyle = '#3a0f14'; c.fillRect(x, y, w, h);
+      const baixa = f <= 0.25 && (this.tick & 16);
+      c.fillStyle = baixa ? '#ff8090' : f > 0.5 ? '#4cd964' : f > 0.25 ? '#ffd34d' : '#e33b4e';
+      const bx = direita ? x + w - cheio : x;
+      c.fillRect(bx, y, cheio, h);
+      c.fillStyle = 'rgba(255,255,255,0.35)'; c.fillRect(bx, y, cheio, 1);
+      c.fillStyle = 'rgba(0,0,0,0.25)';               // marcas a cada 5 pontos
+      for (let k = 5; k < p.maxhp; k += 5) c.fillRect(x + Math.round(w * k / p.maxhp), y, 1, h);
     }
 
     drawMsg(c) {
@@ -1258,7 +1318,7 @@
         this.text(c, this.hasSave ? 'ENTER = CONTINUAR' : 'ENTER = COMECAR', VIEW_W / 2, 140, '#fff', 'center');
       }
       this.text(c, this.hasSave ? 'J = NOVO JOGO   ESC = APAGAR SAVE' : 'J = COMECAR', VIEW_W / 2, 156, '#8f96a8', 'center');
-      this.text(c, 'N = MULTIJOGADOR (REDE LOCAL)', VIEW_W / 2, 168, '#5ce1ff', 'center');
+      this.text(c, Net.codigoDoLink() ? 'N = ENTRAR NA SALA ' + Net.codigoDoLink() : 'N = MULTIJOGADOR', VIEW_W / 2, 168, '#5ce1ff', 'center');
       this.text(c, 'WASD MOVER  J ATACA  ESPACO ROLA', VIEW_W / 2, 182, '#5c667e', 'center');
       this.text(c, 'F = PODER   X / C / V = HABILIDADES   ESC PAUSA', VIEW_W / 2, 194, '#5c667e', 'center');
       this.text(c, 'DUPLO CLIQUE = TELA CHEIA', VIEW_W / 2, 208, '#3a4159', 'center');
@@ -1313,12 +1373,13 @@
       def.desc.forEach((l, i) => this.text(c, l, VIEW_W / 2, 140 + i * 11, '#c8cede', 'center'));
       this.text(c, 'HABILIDADE (F): ' + def.skill, VIEW_W / 2, 166, '#ff8a3d', 'center');
       if (G.CLASS_IDS[this.selIdx] === 'arqueiro') {
-        this.text(c, 'SEGURA J CARREGA   X = SALVA DE 3 (2s, SEGURE = 4 SALVAS)   C = 4 GIROS (3s)', VIEW_W / 2, 178, '#7fd858', 'center');
+        this.text(c, 'SEGURA J CARREGA   X = SALVA DE 3 (SEGURE = 4 SALVAS)   C = 4 GIROS', VIEW_W / 2, 178, '#7fd858', 'center');
       }
       if (G.CLASS_IDS[this.selIdx] === 'mago') {
-        this.text(c, '7 FOGO > 4 GELO > 2 RAIO   X = RAIOS (5s)   C = ESCUDO (7s)   V = INFERNO (10s)', VIEW_W / 2, 178, '#7ff2ff', 'center');
+        this.text(c, '7 FOGO > 4 GELO > 2 RAIO   X = RAIOS   C = ESCUDO   V = INFERNO', VIEW_W / 2, 178, '#7ff2ff', 'center');
       }
-      this.text(c, 'SETAS ESCOLHEM   ENTER CONFIRMA   ESC VOLTA', VIEW_W / 2, 198, '#5c667e', 'center');
+      this.text(c, 'X, C E V LIBERAM COM 3, 6 E 10 ABATES (SO O F TEM RECARGA)', VIEW_W / 2, 188, '#8f96a8', 'center');
+      this.text(c, 'SETAS ESCOLHEM   ENTER CONFIRMA   ESC VOLTA', VIEW_W / 2, 200, '#5c667e', 'center');
     }
 
     drawPause(c) {
@@ -1374,27 +1435,16 @@
         VIEW_W / 2, oy + mh + 28, '#fff', 'center');
       const cd = p.fireCd === 0 ? 'PRONTA' : Math.ceil(p.fireCd / 60) + 's';
       this.text(c, p.def.skill + ' (F): ' + cd, VIEW_W / 2, oy + mh + 40, '#ff8a3d', 'center');
-      if (p.def.modo === 'bow') {
-        const sp = p.spCd === 0 ? 'PRONTA' : Math.ceil(p.spCd / 60) + 's';
-        this.text(c, 'SALVA DE 3 FLECHAS (X): ' + sp, VIEW_W / 2, oy + mh + 52, '#7fd858', 'center');
-        const gi = p.spinCd === 0 ? 'PRONTO' : Math.ceil(p.spinCd / 60) + 's';
-        const go = p.goldCd === 0 ? 'PRONTA' : Math.ceil(p.goldCd / 60) + 's';
-        this.text(c, '4 GIROS (C): ' + gi, VIEW_W / 2 - 6, oy + mh + 64, '#b45cff', 'right');
-        this.text(c, 'DOURADA (V): ' + go, VIEW_W / 2 + 6, oy + mh + 64, '#ffd34d', 'left');
-      } else if (p.def.modo === 'melee') {
-        const sp = p.spCd === 0 ? 'PRONTA' : Math.ceil(p.spCd / 60) + 's';
-        this.text(c, 'INVESTIDA (X, SEGURE): ' + sp, VIEW_W / 2, oy + mh + 52, '#7fd858', 'center');
-        const gi = p.spinCd === 0 ? 'PRONTO' : Math.ceil(p.spinCd / 60) + 's';
-        const go = p.goldCd === 0 ? 'PRONTA' : Math.ceil(p.goldCd / 60) + 's';
-        this.text(c, 'GIRO TRIPLO (C): ' + gi, VIEW_W / 2 - 6, oy + mh + 64, '#b45cff', 'right');
-        this.text(c, 'RELAMPAGO (V): ' + go, VIEW_W / 2 + 6, oy + mh + 64, '#ffd34d', 'left');
-      } else if (p.def.modo === 'magic') {
-        const sp = p.spCd === 0 ? 'PRONTA' : Math.ceil(p.spCd / 60) + 's';
-        this.text(c, 'TEMPESTADE DE RAIOS (X): ' + sp, VIEW_W / 2, oy + mh + 52, '#7fd858', 'center');
-        const gi = p.spinCd === 0 ? 'PRONTO' : Math.ceil(p.spinCd / 60) + 's';
-        const go = p.goldCd === 0 ? 'PRONTO' : Math.ceil(p.goldCd / 60) + 's';
-        this.text(c, 'ESCUDO (C): ' + gi, VIEW_W / 2 - 6, oy + mh + 64, '#b45cff', 'right');
-        this.text(c, 'INFERNO (V): ' + go, VIEW_W / 2 + 6, oy + mh + 64, '#ffd34d', 'left');
+      // X, C e V: quanto falta (abates, ou dano no oponente no VS)
+      const un = this.modo() === 'vs' ? ' DE DANO' : ' ABATES';
+      const falta = (n) => (n === 0 ? 'PRONTO' : 'FALTAM ' + n + un);
+      const nomes = { bow: ['SALVA DE 3 FLECHAS (X, SEGURE)', '4 GIROS (C)', 'DOURADA (V)'],
+        melee: ['INVESTIDA (X, SEGURE)', 'GIRO TRIPLO (C)', 'RELAMPAGO (V)'],
+        magic: ['TEMPESTADE DE RAIOS (X)', 'ESCUDO (C)', 'INFERNO (V)'] }[p.def.modo];
+      if (nomes) {
+        this.text(c, nomes[0] + ': ' + falta(p.spCd), VIEW_W / 2, oy + mh + 52, '#7fd858', 'center');
+        this.text(c, nomes[1] + ': ' + falta(p.spinCd), VIEW_W / 2 - 6, oy + mh + 64, '#b45cff', 'right');
+        this.text(c, nomes[2] + ': ' + falta(p.goldCd), VIEW_W / 2 + 6, oy + mh + 64, '#ffd34d', 'left');
       }
       this.text(c, 'ESC OU ENTER = VOLTAR', VIEW_W / 2, VIEW_H + HUD_H - 12, '#5c667e', 'center');
     }
@@ -1412,38 +1462,67 @@
 
     drawLobby(c) {
       const L = this.lobby, t = this.tick;
+      const pontos = '...'.slice(0, 1 + ((t >> 4) % 3));
       this.fundoMenu(c);
       this.text(c, 'MULTIJOGADOR', VIEW_W / 2, 30, '#5ce1ff', 'center', 14);
-      this.text(c, 'REDE LOCAL', VIEW_W / 2, 44, '#5c667e', 'center');
-      const lista = (itens, y0) => itens.forEach((it, k) => {
+      const via = L.transporte === 'ws' ? 'REDE LOCAL' : L.transporte === 'p2p' ? 'PELA INTERNET (CODIGO DA SALA)' : '';
+      this.text(c, via, VIEW_W / 2, 44, '#5c667e', 'center');
+      const lista = (itens, y0, passo) => itens.forEach((it, k) => {
         const sel = k === L.sel;
-        this.text(c, (sel ? '> ' : '  ') + it.nome, VIEW_W / 2, y0 + k * 26, sel ? '#ffd34d' : '#8f96a8', 'center', 10);
-        if (it.desc) this.text(c, it.desc, VIEW_W / 2, y0 + k * 26 + 11, sel ? '#c8cede' : '#5c667e', 'center');
+        this.text(c, (sel ? '> ' : '  ') + it.nome, VIEW_W / 2, y0 + k * passo, sel ? '#ffd34d' : '#8f96a8', 'center', 10);
+        if (it.desc) this.text(c, it.desc, VIEW_W / 2, y0 + k * passo + 11, sel ? '#c8cede' : '#5c667e', 'center');
       });
 
       if (L.etapa === 'menu') {
         lista([{ nome: 'CRIAR SALA', desc: 'VOCE HOSPEDA, O OUTRO ENTRA' },
-          { nome: 'ENTRAR NA SALA', desc: 'ENTRA NA SALA DE QUEM HOSPEDA' },
-          { nome: 'VOLTAR' }], 76);
+          { nome: 'ENTRAR NA SALA', desc: L.codigo ? 'SALA ' + L.codigo : 'ENTRA NA SALA DE QUEM HOSPEDA' },
+          { nome: 'VOLTAR' }], 76, 26);
       } else if (L.etapa === 'modo') {
         this.text(c, 'MODO DE JOGO', VIEW_W / 2, 64, '#fff', 'center');
-        lista(MODOS, 86);
+        lista(MODOS, 86, 26);
+      } else if (L.etapa === 'arena') {
+        this.text(c, 'ESCOLHA A ARENA DO VS', VIEW_W / 2, 64, '#fff', 'center');
+        lista(G.ARENAS, 84, 20);
+      } else if (L.etapa === 'codigo') {
+        this.text(c, 'CODIGO DA SALA', VIEW_W / 2, 74, '#fff', 'center', 10);
+        const n = Net.TAM_CODIGO, w = 22, x0 = VIEW_W / 2 - (n * w) / 2;
+        for (let k = 0; k < n; k++) {
+          const x = x0 + k * w;
+          c.fillStyle = '#171b2c'; c.fillRect(x + 2, 86, w - 4, 24);
+          c.strokeStyle = k === L.codigo.length && (t & 16) ? '#ffd34d' : '#3a4159';
+          c.lineWidth = 1; c.strokeRect(x + 2.5, 86.5, w - 5, 23);
+          if (L.codigo[k]) this.text(c, L.codigo[k], x + w / 2, 104, '#ffd34d', 'center', 14);
+        }
+        this.text(c, 'DIGITE O CODIGO QUE APARECE NA TELA DE QUEM CRIOU', VIEW_W / 2, 128, '#8f96a8', 'center');
+        this.text(c, this.input.touch ? 'TOQUE EM ≡ PARA DIGITAR' : 'ENTER CONFIRMA   BACKSPACE APAGA   ESC VOLTA', VIEW_W / 2, 140, '#5c667e', 'center');
       } else if (L.etapa === 'espera') {
-        this.text(c, 'SALA ' + ((MODOS.find((m) => m.id === L.modo) || {}).nome || '') + ' CRIADA', VIEW_W / 2, 74, '#fff', 'center', 10);
-        this.text(c, 'AGUARDANDO O JOGADOR 2' + '...'.slice(0, 1 + ((t >> 4) % 3)), VIEW_W / 2, 94, '#ffd34d', 'center');
-        this.text(c, 'O OUTRO PC DEVE ABRIR NO NAVEGADOR:', VIEW_W / 2, 118, '#8f96a8', 'center');
-        const ips = Net.ips.length ? Net.ips : ['(conectando...)'];
-        ips.slice(0, 3).forEach((ip, k) => {
-          this.text(c, 'http://' + ip + (Net.porta ? ':' + Net.porta : ''), VIEW_W / 2, 132 + k * 11, '#5ce1ff', 'center');
-        });
-        this.text(c, 'E ESCOLHER ENTRAR NA SALA', VIEW_W / 2, 132 + Math.min(3, ips.length) * 11 + 4, '#8f96a8', 'center');
+        this.text(c, 'SALA ' + ((MODOS.find((m) => m.id === L.modo) || {}).nome || '') + ' CRIADA', VIEW_W / 2, 66, '#fff', 'center', 10);
+        if (L.arena) this.text(c, 'ARENA: ' + ((G.ARENAS.find((a) => a.id === L.arena) || {}).nome || ''), VIEW_W / 2, 78, '#8f96a8', 'center');
+        if (L.transporte === 'ws') {
+          this.text(c, 'AGUARDANDO O JOGADOR 2' + pontos, VIEW_W / 2, 94, '#ffd34d', 'center');
+          this.text(c, 'O OUTRO PC DEVE ABRIR NO NAVEGADOR:', VIEW_W / 2, 118, '#8f96a8', 'center');
+          const ips = Net.ips.length ? Net.ips : ['(conectando...)'];
+          ips.slice(0, 3).forEach((ip, k) => {
+            this.text(c, 'http://' + ip + (Net.porta ? ':' + Net.porta : ''), VIEW_W / 2, 132 + k * 11, '#5ce1ff', 'center');
+          });
+          this.text(c, 'E ESCOLHER ENTRAR NA SALA', VIEW_W / 2, 132 + Math.min(3, ips.length) * 11 + 4, '#8f96a8', 'center');
+        } else if (!L.codigo) {
+          this.text(c, 'ABRINDO A SALA' + pontos, VIEW_W / 2, 108, '#ffd34d', 'center');
+        } else {
+          this.text(c, 'CODIGO DA SALA', VIEW_W / 2, 96, '#8f96a8', 'center');
+          this.text(c, L.codigo.split('').join(' '), VIEW_W / 2, 122, '#ffd34d', 'center', 22);
+          this.text(c, 'AGUARDANDO O JOGADOR 2' + pontos, VIEW_W / 2, 140, '#fff', 'center');
+          this.text(c, 'O OUTRO ABRE O JOGO, APERTA N, ENTRAR NA SALA E DIGITA O CODIGO', VIEW_W / 2, 154, '#8f96a8', 'center');
+          if (L.copiado > 0) { L.copiado--; this.text(c, 'LINK COPIADO!', VIEW_W / 2, 168, '#7fd858', 'center'); }
+          else this.text(c, 'C = COPIAR O LINK DA SALA', VIEW_W / 2, 168, '#5ce1ff', 'center');
+        }
       } else if (L.etapa === 'conectando') {
-        this.text(c, 'PROCURANDO A SALA' + '...'.slice(0, 1 + ((t >> 4) % 3)), VIEW_W / 2, 100, '#ffd34d', 'center', 10);
+        this.text(c, (L.papel === 'host' ? 'CRIANDO A SALA' : 'PROCURANDO A SALA' + (L.codigo ? ' ' + L.codigo : '')) + pontos, VIEW_W / 2, 100, '#ffd34d', 'center', 10);
       } else if (L.etapa === 'erro') {
         this.text(c, L.msg, VIEW_W / 2, 100, '#e33b4e', 'center', 10);
         this.text(c, 'ENTER = VOLTAR', VIEW_W / 2, 124, '#8f96a8', 'center');
       }
-      this.text(c, 'SETAS ESCOLHEM   ENTER CONFIRMA   ESC VOLTA', VIEW_W / 2, 198, '#5c667e', 'center');
+      if (L.etapa !== 'codigo') this.text(c, 'SETAS ESCOLHEM   ENTER CONFIRMA   ESC VOLTA', VIEW_W / 2, 198, '#5c667e', 'center');
     }
 
     drawRemoto(c) {
@@ -1458,18 +1537,24 @@
       const [a, b] = this.players;
       if (!a || !b) return;
       const y = HUD_H + 3, w = 116, x = (VIEW_W - w) / 2;
-      c.fillStyle = 'rgba(8,8,16,0.78)';
-      c.fillRect(x, y, w, 12);
       if (this.modo() === 'comp') {
+        c.fillStyle = 'rgba(8,8,16,0.78)';
+        c.fillRect(x, y, w, 12);
         const s = Math.ceil(this.tempo / 60);
         const tempo = ((s / 60) | 0) + ':' + String(s % 60).padStart(2, '0');
         this.text(c, 'P1 ' + a.abates, x + 4, y + 9, COR_P[0]);
         this.text(c, tempo, VIEW_W / 2, y + 9, s <= 10 && (this.tick & 16) ? '#e33b4e' : '#fff', 'center');
         this.text(c, b.abates + ' P2', x + w - 4, y + 9, COR_P[1], 'right');
       } else {
-        this.text(c, 'P1 ' + Math.ceil(a.hp / 2), x + 4, y + 9, COR_P[0]);
+        // VS: as duas barras, uma de cada lado
+        const W = 200, X = (VIEW_W - W) / 2;
+        c.fillStyle = 'rgba(8,8,16,0.78)';
+        c.fillRect(X, y, W, 12);
+        this.text(c, 'P1', X + 3, y + 9, COR_P[0]);
+        this.barraVida(c, X + 17, y + 3, 70, 6, a);
         this.text(c, 'VS', VIEW_W / 2, y + 9, '#e33b4e', 'center');
-        this.text(c, Math.ceil(b.hp / 2) + ' P2', x + w - 4, y + 9, COR_P[1], 'right');
+        this.barraVida(c, X + W - 87, y + 3, 70, 6, b, true);
+        this.text(c, 'P2', X + W - 3, y + 9, COR_P[1], 'right');
       }
     }
 
@@ -1486,7 +1571,7 @@
         const img = this.SPR.heroes[p.cls].walk.down[(this.tick >> 4) & 1];
         c.drawImage(img, x - 16, 84, 32, 32);
         this.text(c, 'JOGADOR ' + p.num, x, 128, COR_P[k], 'center');
-        this.text(c, comp ? p.abates + ' ABATES' : Math.ceil(Math.max(0, p.hp) / 2) + ' CORACOES', x, 140, '#fff', 'center');
+        this.text(c, comp ? p.abates + ' ABATES' : 'VIDA ' + Math.max(0, p.hp) + '/' + p.maxhp, x, 140, '#fff', 'center');
       });
       if ((this.tick >> 5) & 1) this.text(c, 'ANFITRIAO: ENTER = JOGAR DE NOVO   ESC = SAIR', VIEW_W / 2, 182, '#8f96a8', 'center');
     }
@@ -1525,6 +1610,10 @@
     const game = new Game(canvas);
     G.game = game;
     game.input.bindTouch(document.getElementById('touch'));
+    // codigo da sala: as letras vao para o campo e nao viram comandos do jogo
+    addEventListener('keydown', (e) => {
+      if (game.digitaCodigo(e)) { e.preventDefault(); e.stopImmediatePropagation(); }
+    }, true);
 
     // preenche a janela mantendo a proporcao (escala fracionada; o formato largo deixa pouca borda)
     const resize = () => {
