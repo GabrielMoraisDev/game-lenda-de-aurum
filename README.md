@@ -142,19 +142,21 @@ fim da sala** (só param na parede ou na borda), sem precisar carregar.
 
 | Como aperta | Salvas | Flechas | Dano | Atravessa |
 |---|---|---|---|---|
-| Tapa no X (ou soltar antes da carga cheia) | 1 | 3 | **2×** a flecha normal | — |
-| Segurar até a carga cheia (1,5 s, barra branca) | **4 seguidas** (uma a cada 10 quadros) | **12** | **4×** | tudo pela frente |
+| Tapa no X (ou soltar antes da carga cheia) | 1 | 3 | **2×** a flecha do Z | — |
+| Segurar até a carga cheia (1,5 s, barra branca) | **4 seguidas** (uma a cada 10 quadros) | **12** | **2×** a flecha do Z | tudo pela frente |
 
 Na chuva de flechas o herói pode andar e virar entre uma salva e outra, espalhando os tiros. Trocar de
 sala cancela as salvas que faltam. As flechas encolhem ao longo dos primeiros 140 px (2,5× → 0,85×) e
 estabilizam depois disso.
 
-### Giro de 360° — tecla C (arqueiro)
+### Giro explosivo — tecla C (arqueiro)
 
 O herói dá **4 voltas** no lugar, soltando **uma flecha em cada uma das 8 direções por volta** (direita,
 diagonal, baixo, diagonal, esquerda, e assim por diante), uma a cada 3 quadros: **32 flechas em 1,6 s**,
-4 em cada direção. Alcance de 120 px por flecha (7,5 blocos), dano de flecha normal, e o herói fica
-**invulnerável durante o giro**. Libera com **6 abates**, barra roxa no HUD.
+4 em cada direção. Alcance de 120 px por flecha (7,5 blocos). As flechas são **explosivas**: explodem ao
+acertar um inimigo, bater na parede ou chegar ao fim do alcance, e a explosão (raio de 1 bloco) dá **3× o
+dano da flecha do Z** em todos por perto. O herói fica **invulnerável durante o giro**. Libera com
+**6 abates**, barra roxa no HUD.
 
 Serve para quando você é cercado: num teste com 8 inimigos em círculo ao redor, todos os 8 foram
 atingidos.
@@ -163,9 +165,11 @@ atingidos.
 
 Solta uma flecha de ouro na direção encarada que **persegue o inimigo mais próximo**, vira aos poucos
 até ele e atravessa paredes. Ao acertar, escolhe o próximo inimigo vivo que ainda não atingiu, e assim
-por diante até **acertar todos os inimigos da sala** — então some num brilho dourado. Cada inimigo
-leva **3× o dano de uma flecha comum** (3 no início, 6 com o fragmento), uma vez só. Sem inimigos na
-sala, voa reto 160 px e some. Libera com **10 abates**, barra dourada no HUD.
+por diante até **passar por todos os inimigos da sala** (inclusive os que nascem no meio, como os
+filhotes de slime e caco). Cada um leva **4× o dano da flecha do Z** e os **monstros comuns morrem na
+hora**; chefes e o oponente do VS só levam o dano. No **último inimigo** a flecha **crava**, pisca por
+2/3 s e **explode** (raio de 2 blocos, 4× de novo em todos por perto). Sem inimigos na sala, voa reto
+160 px e some. Libera com **10 abates**, barra dourada no HUD.
 
 ### Magia elemental (mago)
 

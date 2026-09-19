@@ -201,8 +201,13 @@
   const SPIN_DIRS = ['right', 'downright', 'down', 'downleft', 'left', 'upleft', 'up', 'upright'];
   const GOLD_SPD = 3.6;                        // velocidade de cruzeiro
   const GOLD_TURN = 0.16;                      // quanto a flecha pode virar por quadro (rad)
-  const GOLD_MULT = 3;                         // dano = 3x o de uma flecha comum
-  const GOLD_LIFE = 600;                       // limite de seguranca: some depois de 10 s
+  const GOLD_MULT = 4;                         // dano = 4x o da flecha do Z
+  const GOLD_LIFE = 1200;                      // limite de seguranca: some depois de 20 s
+  const GOLD_GRUDA = 40;                       // no ultimo inimigo: fica cravada 2/3 s e explode
+  const GOLD_EXPL_R = 34;                      // raio da explosao final
+  const AR_X_MULT = 2;                         // salva (X), carregada ou nao: 2x o dano da flecha do Z
+  const AR_C_MULT = 3;                         // giro (C): flechas explosivas com 3x o dano da flecha do Z
+  const AR_C_RAIO = 16;                        // raio da explosao de cada flecha do giro
   const GOLD_FREE = 160;                       // sem alvo: voa reto por esse tanto e some
   const GOLD_ECHO = 8;                         // capacidade do rastro
   const ARROW_SPD = [2.6, 5.4];                // solta no tapa -> carga cheia
@@ -333,8 +338,8 @@
       hp: 10, speed: 1.7, dmg: 1, dash: 2,   // rolamento em dobro
       desc: ['FLECHAS A DISTANCIA', 'MAIS RAPIDO, ROLAMENTO LONGO'],
       skill: 'ONDA DE CHOQUE',
-      hab: ['SALVA DE 3 FLECHAS (X, SEGURE)', '4 GIROS (C)', 'DOURADA (V)'],
-      dica: 'SEGURA J CARREGA   X SALVA DE 3 (SEGURE = 4)   C 4 GIROS', dicaCor: '#7fd858'
+      hab: ['SALVA DE 3 FLECHAS (X, SEGURE)', 'GIRO EXPLOSIVO (C)', 'DOURADA (V)'],
+      dica: 'X SALVA 2x   C GIRO EXPLOSIVO 3x   V DOURADA 4x', dicaCor: '#7fd858'
     },
     mago: {
       nome: 'MAGO', arma: 'CAJADO', modo: 'magic',
@@ -735,7 +740,7 @@
           Sound.play('spin');
           g.particles.burst(this.cx, this.cy, 20, 1, 2.2, 22);
           g.shake(4);
-          g.say('GIRO DE 360!', 60);
+          g.say('GIRO EXPLOSIVO!', 60);
           return;
         }
       }
@@ -1521,7 +1526,8 @@
         scale0: ARROW_SCALE[0] + (ARROW_SCALE[1] - ARROW_SCALE[0]) * t,
         echoLife: 4 + Math.round(4 * t),
         empurrao: opt.empurrao,
-        pierce: opt.pierce !== undefined ? opt.pierce : (cheia ? 1 : 0)
+        pierce: opt.pierce !== undefined ? opt.pierce : (cheia ? 1 : 0),
+        explode: opt.explode
       }));
       return cheia;
     }
@@ -1554,7 +1560,7 @@
     }
 
     salva(g, cheia) {
-      const dmg = this.dano() * 2 * (cheia ? 2 : 1);
+      const dmg = this.danoArma() * AR_X_MULT;                // carregada ou nao: 2x a flecha do Z
       for (let k = -1; k <= 1; k++) {
         this.lancarFlecha(g, cheia ? 1 : 0.6, {
           dmg, range: SP_RANGE_FULL, shrink: SP_SHRINK_FULL, pierce: cheia ? 99 : 0, offset: k * SP_SPACING
@@ -1571,7 +1577,7 @@
       this.afastaColados(g);
       const v = DIR_VEC[this.dir];
       const m = this.muzzle(12);
-      g.addEnt(new GoldArrow(m[0], m[1], v[0] * GOLD_SPD, v[1] * GOLD_SPD, this.dano() * GOLD_MULT));
+      g.addEnt(new GoldArrow(m[0], m[1], v[0] * GOLD_SPD, v[1] * GOLD_SPD, this.danoArma() * GOLD_MULT));
       this.goldCd = this.goldMax;
       this.atk = BOW_TIME - BOW_FIRE;
       Sound.play('gold');
@@ -1664,7 +1670,7 @@
         if (idx !== this.spinIdx) {
           this.spinIdx = idx;
           this.dir = SPIN_DIRS[idx % SPIN_DIRS.length];
-          this.lancarFlecha(g, 0.35, { dmg: this.dano(), range: SPIN_RANGE });
+          this.lancarFlecha(g, 0.35, { dmg: this.danoArma() * AR_C_MULT, range: SPIN_RANGE, explode: AR_C_RAIO });
           Sound.play('shoot');
           const m = this.muzzle(12);
           g.particles.spawn(m[0], m[1], 0, 0, 8, 1, 1, 0);
@@ -3935,6 +3941,7 @@
       this.echoLife = opt.echoLife;
       this.pierce = opt.pierce || 0;
       this.empurrao = opt.empurrao || null;     // 'triplo' ou 'total'
+      this.explode = opt.explode || 0;          // raio: explode ao acertar, bater ou acabar o alcance
       this.friendly = true; this.shot = true;
       this.ang = Math.atan2(vy, vx);
       this.speed = Math.hypot(vx, vy);
@@ -3997,13 +4004,14 @@
       this.traveled += this.speed;
 
       if (this.x < -10 || this.y < -10 || this.x > VIEW_W + 10 || this.y > VIEW_H + 10) { this.gastar(g, false); return; }
-      if (G.boxSolid(g.room, this.x + 1, this.y + 1, 4, 4, true)) { this.gastar(g, true); return; }
+      if (G.boxSolid(g.room, this.x + 1, this.y + 1, 4, 4, true)) { this.estoura(g); this.gastar(g, true); return; }
 
       const alvos = g.alvos(this.dono);
       for (let i = 0; i < alvos.length; i++) {
         const e = alvos[i];
         if (e.dead || this.atingidos.indexOf(e) >= 0) continue;
         if (!this.hits(e)) continue;
+        if (this.explode) { this.estoura(g); this.gastar(g, false); return; }   // a explosao ja pega o alvo
         G.ferir(g, e, this.dmg, this.vx / this.speed, this.vy / this.speed, this.dono);
         if (this.empurrao && !e.dead && e.empurra) e.empurra(this.vx / this.speed, this.vy / this.speed, this.empurrao);
         this.atingidos.push(e);
@@ -4011,7 +4019,14 @@
         else { this.gastar(g, true); return; }
       }
 
-      if (this.traveled >= this.range) this.gastar(g, true);
+      if (this.traveled >= this.range) { this.estoura(g); this.gastar(g, true); }
+      else if (this.explode && (g.tick & 1) === 0) g.particles.spawn(this.cx, this.cy, 0, 0, 8, 9, 1, 0);
+    }
+
+    // flecha explosiva (giro do arqueiro)
+    estoura(g) {
+      if (!this.explode) return;
+      explosao(g, this.cx, this.cy, this.explode, this.dmg, this.dono);
     }
 
     draw(ctx, S) {
@@ -4054,6 +4069,7 @@
       this.life = GOLD_LIFE;
       this.livre = 0;                          // distancia voada sem alvo
       this.spent = false;
+      this.grudada = null;                     // { alvo, ox, oy, t }: cravada no ultimo inimigo
       this.ex = new Float32Array(GOLD_ECHO);
       this.ey = new Float32Array(GOLD_ECHO);
       this.ea = new Float32Array(GOLD_ECHO);
@@ -4101,6 +4117,7 @@
         return;
       }
 
+      if (this.grudada) { this.updateGrudada(g); return; }
       if (--this.life <= 0) { this.sumir(g); return; }
 
       if (!this.alvo || this.alvo.dead) this.alvo = this.procurar(g);
@@ -4134,11 +4151,37 @@
         if (e.dead || this.atingidos.has(e)) continue;
         if (!this.hits(e)) continue;
         this.atingidos.add(e);
-        G.ferir(g, e, this.dmg, this.vx / GOLD_SPD, this.vy / GOLD_SPD, this.dono);
+        const dx = this.vx / GOLD_SPD, dy = this.vy / GOLD_SPD;
+        G.ferir(g, e, this.dmg, dx, dy, this.dono);
+        // monstro comum morre na hora; chefe leva so os 4x; oponente do VS tambem so leva o dano
+        if (!e.dead && !e.boss && !(e instanceof Player)) G.ferirBruto(g, e, 9999, dx, dy, this.dono);
         Sound.play('goldhit');
         g.particles.burst(this.cx, this.cy, 10, 1, 2, 16);
         if (e === this.alvo) this.alvo = null;
+        // era o ultimo da sala: crava nele e explode
+        if (!this.procurar(g)) {
+          this.grudada = { alvo: e, ox: this.cx - e.cx, oy: this.cy - e.cy, t: GOLD_GRUDA };
+          Sound.play('charged');
+          return;
+        }
       }
+    }
+
+    updateGrudada(g) {
+      const gr = this.grudada;
+      if (gr.alvo && !gr.alvo.dead) { this.x = gr.alvo.cx + gr.ox - this.w / 2; this.y = gr.alvo.cy + gr.oy - this.h / 2; }
+      if ((g.tick & 1) === 0) {
+        const a = Math.random() * Math.PI * 2;
+        g.particles.spawn(this.cx + Math.cos(a) * 8, this.cy + Math.sin(a) * 8, -Math.cos(a) * 0.6, -Math.sin(a) * 0.6, 10,
+          (gr.t >> 2) & 1 ? 0 : 1, 1, 0);
+      }
+      if (--gr.t > 0) return;
+      explosao(g, this.cx, this.cy, GOLD_EXPL_R, this.dmg, this.dono);
+      g.particles.burst(this.cx, this.cy, 30, 1, 3, 26, 2);
+      g.flashT = Math.max(g.flashT || 0, 6);
+      Sound.play('shootbig');
+      this.grudada = null;
+      this.sumir(g);
     }
 
     draw(ctx, S) {
@@ -4159,6 +4202,10 @@
         const img = pick(this.ang);
         const w = img.width * sc, h = img.height * sc;
         ctx.drawImage(img, (this.cx - w / 2) | 0, (this.cy - h / 2) | 0, w | 0, h | 0);
+        if (this.grudada && ((this.grudada.t >> 2) & 1)) {   // pisca antes de explodir
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect((this.cx - 2) | 0, (this.cy - 2) | 0, 4, 4);
+        }
       }
     }
   }
