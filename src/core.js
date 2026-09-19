@@ -426,6 +426,48 @@
         pad: { 0: [57, 60, 64], 8: [53, 57, 60], 16: [55, 60, 64], 24: [55, 59, 62],
                32: [57, 60, 64], 40: [53, 57, 60], 48: [55, 59, 62], 56: [52, 56, 59] }
       },
+      // deserto: escala frigia (mi frigio), com o baixo arrastado
+      deserto: {
+        spb: 0.19,
+        lead: [64, R, 65, R, 68, R, 67, 65, 64, R, R, 60, 62, R, 64, R,
+               65, R, 68, 70, 68, R, 67, R, 65, R, 64, R, R, R, R, R],
+        bass: [40, R, R, R, 41, R, R, R, 40, R, R, R, 36, R, R, R,
+               40, R, R, R, 41, R, R, R, 43, R, R, R, 40, R, R, R]
+      },
+      // geleira: poucas notas, agudas e longas, com eco de acorde
+      geleira: {
+        spb: 0.26, wave: 'triangle', vol: 0.18, sus: 2.6,
+        lead: [81, R, R, R, 79, R, R, 76, 74, R, R, R, 76, R, R, R,
+               81, R, R, 84, 83, R, R, 79, 76, R, R, R, R, R, R, R],
+        bass: [45, R, R, R, R, R, R, R, 43, R, R, R, R, R, R, R,
+               41, R, R, R, R, R, R, R, 40, R, R, R, R, R, R, R],
+        pad: { 0: [57, 60, 64], 8: [55, 59, 62], 16: [53, 57, 60], 24: [52, 55, 59] }
+      },
+      // forja: martelada de baixo, rapida e pesada
+      forja: {
+        spb: 0.14,
+        lead: [52, 52, R, 55, 52, R, 57, R, 52, 52, R, 55, 58, R, 57, 55,
+               53, 53, R, 56, 53, R, 58, R, 53, 53, R, 56, 59, R, 58, 56],
+        bass: [28, 28, 28, R, 28, 28, R, 28, 28, 28, 28, R, 28, R, 28, R,
+               29, 29, 29, R, 29, 29, R, 29, 29, 29, 29, R, 29, R, 29, R]
+      },
+      // ilhas do ceu: maior, leve, subindo
+      ceu: {
+        spb: 0.18, wave: 'triangle', vol: 0.2,
+        lead: [72, R, 76, R, 79, R, 83, 81, 79, R, 76, R, 77, R, 79, R,
+               74, R, 77, R, 81, R, 84, 83, 81, R, 79, R, R, R, R, R],
+        bass: [48, R, 55, R, 52, R, 55, R, 50, R, 57, R, 53, R, 57, R,
+               48, R, 55, R, 52, R, 55, R, 47, R, 54, R, 43, R, R, R]
+      },
+      // vazio: tons inteiros, sem centro, quase parado
+      vazio: {
+        spb: 0.28, wave: 'sine', vol: 0.22, sus: 3,
+        lead: [70, R, R, 68, R, R, 66, R, 64, R, R, 62, R, R, 60, R,
+               62, R, R, 64, R, R, 66, R, 68, R, R, R, R, R, R, R],
+        bass: [34, R, R, R, R, R, R, R, 32, R, R, R, R, R, R, R,
+               30, R, R, R, R, R, R, R, 32, R, R, R, R, R, R, R],
+        pad: { 0: [46, 50, 54], 8: [44, 48, 52], 16: [42, 46, 50], 24: [44, 48, 52] }
+      },
       win: {
         spb: 0.18,
         lead: [72, 76, 79, 84, 83, 79, 81, R, 77, 81, 84, 88, 86, 84, 83, R,

@@ -442,6 +442,198 @@
     };
   }
 
+  /* ---- tiles dos mundos 4 a 8 (deserto, geleira, forja, ceu, vazio) ---- */
+
+  // areia clara batida pelo vento
+  function duneBase(x, r, claro) {
+    px(x, 0, 0, 16, 16, claro ? '#e8d9a2' : '#d9c78c');
+    for (let i = 0; i < 4; i++) {                       // cristas do vento
+      const y = 1 + i * 4 + ((r() * 2) | 0), a = (r() * 10) | 0;
+      px(x, a, y, 6 + ((r() * 5) | 0), 1, '#f2e6bb');
+      px(x, a + 1, y + 1, 5, 1, '#c3ae76');
+    }
+    for (let i = 0; i < 12; i++) px(x, (r() * 16) | 0, (r() * 16) | 0, 1, 1, r() < 0.6 ? '#c3ae76' : '#f7eec9');
+  }
+  function tileDune(x, r) { duneBase(x, r, false); }
+  function tileDune2(x, r) {
+    duneBase(x, r, true);
+    for (let i = 0; i < 3; i++) {                       // cacos de vidro do deserto dos espelhos
+      const a = 2 + ((r() * 12) | 0), b = 2 + ((r() * 12) | 0);
+      px(x, a, b, 2, 1, '#bfe9f2'); px(x, a, b + 1, 1, 1, '#7fb9c8');
+    }
+  }
+  // bloco de arenito com juntas
+  function tileSandstone(x, r) {
+    px(x, 0, 0, 16, 16, '#9c7f4a');
+    for (let k = 0; k < 2; k++) {
+      const by = k * 8, off = k * 4;
+      for (let b = 0; b < 2; b++) {
+        const bx = (b * 8 + off) % 16;
+        px(x, bx + 1, by + 1, 6, 6, '#c2a163');
+        px(x, bx + 1, by + 1, 6, 1, '#dcc189');
+        px(x, bx + 1, by + 6, 6, 1, '#7d6338');
+      }
+    }
+    for (let i = 0; i < 6; i++) px(x, (r() * 15) | 0, (r() * 15) | 0, 1, 1, r() < 0.5 ? '#7d6338' : '#e0c894');
+  }
+  function tileCactus(x, r) {
+    duneBase(x, r, false);
+    px(x, 4, 14, 8, 2, 'rgba(0,0,0,0.25)');
+    px(x, 6, 2, 4, 13, '#2f7a3a');                      // tronco
+    px(x, 6, 2, 1, 13, '#48a352');
+    px(x, 9, 3, 1, 12, '#1d5526');
+    px(x, 3, 6, 3, 2, '#2f7a3a'); px(x, 3, 4, 2, 3, '#2f7a3a');   // braco esquerdo
+    px(x, 10, 9, 3, 2, '#2f7a3a'); px(x, 12, 6, 2, 4, '#2f7a3a'); // braco direito
+    for (let i = 0; i < 5; i++) px(x, 5 + ((r() * 7) | 0), 3 + ((r() * 11) | 0), 1, 1, '#d8f0a0');
+    if (r() < 0.5) px(x, 7, 1, 2, 1, '#e84c3d');        // flor
+  }
+  // chao de vidro polido: reflete o ceu
+  function tileGlass(x, r) {
+    px(x, 0, 0, 16, 16, '#7a93a8');
+    px(x, 0, 0, 16, 8, '#8fa9bd');
+    for (let i = 0; i < 3; i++) {
+      const a = (r() * 10) | 0, b = (r() * 12) | 0;
+      px(x, a, b, 5, 1, '#cfe6f2'); px(x, a + 1, b + 1, 3, 1, '#6d859a');
+    }
+    px(x, 0, 0, 16, 1, '#b8d4e2'); px(x, 0, 15, 16, 1, '#5d7286');
+    for (let i = 0; i < 5; i++) px(x, (r() * 16) | 0, (r() * 16) | 0, 1, 1, r() < 0.5 ? '#eaf6ff' : '#63798c');
+  }
+
+  // neve fofa
+  function snowBase(x, r) {
+    px(x, 0, 0, 16, 16, '#e6eef7');
+    for (let i = 0; i < 10; i++) px(x, (r() * 15) | 0, (r() * 15) | 0, 2, 1, '#f7fbff');
+    for (let i = 0; i < 8; i++) px(x, (r() * 16) | 0, (r() * 16) | 0, 1, 1, '#c3d4e6');
+  }
+  function tileSnow(x, r) { snowBase(x, r); }
+  function tileIce(x, r) {                               // gelo liso
+    px(x, 0, 0, 16, 16, '#9fd8ee');
+    px(x, 0, 0, 16, 7, '#b4e4f5');
+    for (let i = 0; i < 3; i++) {                        // rachaduras
+      const a = 1 + ((r() * 12) | 0), b = 2 + ((r() * 11) | 0), n = 3 + ((r() * 4) | 0);
+      for (let k = 0; k < n; k++) px(x, a + k, b + ((k * 7) % 3), 1, 1, '#6fb2d0');
+    }
+    px(x, 2, 2, 4, 1, '#eaffff'); px(x, 10, 10, 3, 1, '#eaffff');
+    for (let i = 0; i < 5; i++) px(x, (r() * 16) | 0, (r() * 16) | 0, 1, 1, '#7cc0dc');
+  }
+  function tileIceWall(x, r) {                           // parede de gelo azul
+    px(x, 0, 0, 16, 16, '#4f93b8');
+    for (let k = 0; k < 4; k++) {
+      const bx = (k & 1) * 8, by = (k >> 1) * 8;
+      px(x, bx + 1, by + 1, 6, 6, '#6fb6d8');
+      px(x, bx + 1, by + 1, 6, 1, '#a8e3f7');
+      px(x, bx + 1, by + 6, 6, 1, '#356f92');
+    }
+    for (let i = 0; i < 4; i++) px(x, 1 + ((r() * 13) | 0), 1 + ((r() * 13) | 0), 1, 2, '#bfeeff');
+  }
+  function tilePine(x, r) {                              // pinheiro com neve
+    snowBase(x, r);
+    px(x, 4, 14, 8, 2, 'rgba(0,0,0,0.22)');
+    px(x, 7, 11, 2, 4, '#4a3a2e');
+    for (let k = 0; k < 3; k++) {
+      const w = 10 - k * 2, y = 9 - k * 3;
+      px(x, 8 - (w >> 1), y, w, 3, '#1f5e3a');
+      px(x, 8 - (w >> 1), y, w, 1, '#2d8352');
+      px(x, 8 - (w >> 1) + 1, y - 1, w - 2, 1, '#eaf6ff');
+    }
+    px(x, 7, 0, 2, 2, '#2d8352');
+  }
+
+  // rocha vulcanica
+  function basaltBase(x, r) {
+    px(x, 0, 0, 16, 16, '#3a2f33');
+    for (let i = 0; i < 12; i++) {
+      const a = (r() * 15) | 0, b = (r() * 15) | 0;
+      px(x, a, b, 2, 2, r() < 0.5 ? '#4a3c42' : '#2c2428');
+    }
+    for (let i = 0; i < 4; i++) px(x, (r() * 16) | 0, (r() * 16) | 0, 1, 1, '#5c4a50');
+  }
+  function tileBasalt(x, r) { basaltBase(x, r); }
+  function tileEmber(x, r) {                             // basalto com veios de brasa
+    basaltBase(x, r);
+    for (let i = 0; i < 3; i++) {
+      const a = 1 + ((r() * 12) | 0), b = 2 + ((r() * 11) | 0), n = 3 + ((r() * 5) | 0);
+      for (let k = 0; k < n; k++) {
+        px(x, a + k, b + ((k * 5) % 3), 1, 1, k % 3 === 0 ? '#ffab3d' : '#c8431a');
+      }
+    }
+    px(x, (r() * 14) | 0, (r() * 14) | 0, 2, 1, '#ffe680');
+  }
+  function tileObsidian(x, r) {                          // coluna de obsidiana
+    basaltBase(x, r);
+    px(x, 2, 14, 12, 2, 'rgba(0,0,0,0.35)');
+    px(x, 4, 0, 8, 15, '#1b1420');
+    px(x, 5, 1, 2, 13, '#3d2f4a');
+    px(x, 10, 1, 1, 13, '#120d16');
+    px(x, 6, 3, 1, 4, '#8a5ad8');
+    px(x, 8, 8, 1, 3, '#c8431a');
+    for (let i = 0; i < 3; i++) px(x, 5 + ((r() * 6) | 0), 1 + ((r() * 12) | 0), 1, 1, '#5c4a6b');
+  }
+
+  // nuvem firme das ilhas do ceu
+  function cloudBase(x, r) {
+    px(x, 0, 0, 16, 16, '#dfe8fb');
+    for (let i = 0; i < 6; i++) {
+      const a = (r() * 12) | 0, b = (r() * 12) | 0;
+      disc(x, a + 2, b + 2, 3, '#eef3ff');
+    }
+    for (let i = 0; i < 6; i++) px(x, (r() * 16) | 0, (r() * 16) | 0, 2, 1, '#c3cfe8');
+  }
+  function tileCloud(x, r) { cloudBase(x, r); }
+  function tileSky(x, r, frame) {                        // vazio azul: so quem voa atravessa
+    px(x, 0, 0, 16, 16, '#2f6bb8');
+    px(x, 0, 0, 16, 5, '#3f86d8');
+    px(x, 0, 11, 16, 5, '#24509a');
+    for (let i = 0; i < 4; i++) px(x, (((r() * 14) | 0) + frame * 3) % 14, (r() * 14) | 0, 3, 1, '#6fb2ef');
+    if (r() < 0.5) px(x, (r() * 13) | 0, (r() * 13) | 0, 2, 1, '#bfe4ff');
+  }
+  function tileSkystone(x, r) {                          // pedra flutuante com runa de vento
+    cloudBase(x, r);
+    px(x, 2, 13, 12, 2, 'rgba(60,80,140,0.25)');
+    px(x, 2, 2, 12, 11, '#6d7fa8');
+    px(x, 3, 3, 10, 2, '#8f9ec8');
+    px(x, 3, 10, 10, 2, '#4b5a80');
+    px(x, 6, 5, 4, 1, '#bfe4ff'); px(x, 7, 6, 2, 3, '#bfe4ff');
+    for (let i = 0; i < 4; i++) px(x, 3 + ((r() * 9) | 0), 3 + ((r() * 8) | 0), 1, 1, '#54628a');
+  }
+
+  // vazio: chao quase preto com poeira de estrela
+  function voidBase(x, r) {
+    px(x, 0, 0, 16, 16, '#14101f');
+    for (let i = 0; i < 10; i++) {
+      const a = (r() * 15) | 0, b = (r() * 15) | 0;
+      px(x, a, b, 2, 1, r() < 0.5 ? '#1d1730' : '#0e0a18');
+    }
+    for (let i = 0; i < 3; i++) px(x, (r() * 16) | 0, (r() * 16) | 0, 1, 1, '#3a2f5a');
+  }
+  function tileVoid(x, r) { voidBase(x, r); }
+  function tileStars(x, r) {
+    voidBase(x, r);
+    for (let i = 0; i < 4; i++) {
+      const a = 1 + ((r() * 13) | 0), b = 1 + ((r() * 13) | 0);
+      px(x, a, b, 1, 1, r() < 0.5 ? '#ffffff' : '#b45cff');
+      if (r() < 0.4) { px(x, a - 1, b, 1, 1, '#6a4a9a'); px(x, a + 1, b, 1, 1, '#6a4a9a'); }
+    }
+  }
+  function tileVoidWall(x, r) {
+    px(x, 0, 0, 16, 16, '#080610');
+    for (let k = 0; k < 4; k++) {
+      const bx = (k & 1) * 8, by = (k >> 1) * 8;
+      px(x, bx + 1, by + 1, 6, 6, '#181233');
+      px(x, bx + 1, by + 1, 6, 1, '#2a1f52');
+      px(x, bx + 1, by + 6, 6, 1, '#05040a');
+    }
+    for (let i = 0; i < 4; i++) px(x, 1 + ((r() * 13) | 0), 1 + ((r() * 13) | 0), 1, 1, '#b45cff');
+  }
+  function tileRift(x, r, frame) {                       // fenda aberta que corta o chao do vazio
+    voidBase(x, r);
+    const w = frame === 1 ? 6 : 4;
+    px(x, 8 - (w >> 1), 0, w, 16, '#000000');
+    px(x, 8 - (w >> 1), 0, 1, 16, '#b45cff');
+    px(x, 7 + (w >> 1), 0, 1, 16, '#7f3fd8');
+    for (let i = 0; i < 4; i++) px(x, 7 + ((r() * 3) | 0), (r() * 16) | 0, 1, 1, '#f0d8ff');
+  }
+
   G.buildTiles = function () {
     const T = G.T;
     const defs = [];
@@ -483,6 +675,25 @@
     defs[T.PILLAR] = [tilePillar];
     defs[T.LAVA] = [tileLava, tileLava, tileLava];
     defs[T.THRONE] = [tileThrone];
+    defs[T.DUNE] = [tileDune];
+    defs[T.DUNE2] = [tileDune2];
+    defs[T.SANDSTONE] = [tileSandstone];
+    defs[T.CACTUS] = [tileCactus];
+    defs[T.GLASS] = [tileGlass];
+    defs[T.SNOW] = [tileSnow];
+    defs[T.ICE] = [tileIce];
+    defs[T.ICE_WALL] = [tileIceWall];
+    defs[T.PINE] = [tilePine];
+    defs[T.BASALT] = [tileBasalt];
+    defs[T.EMBER] = [tileEmber];
+    defs[T.OBSIDIAN] = [tileObsidian];
+    defs[T.CLOUD] = [tileCloud];
+    defs[T.SKY] = [tileSky, tileSky, tileSky];
+    defs[T.SKYSTONE] = [tileSkystone];
+    defs[T.VOID] = [tileVoid];
+    defs[T.STARS] = [tileStars];
+    defs[T.VOIDWALL] = [tileVoidWall];
+    defs[T.RIFT] = [tileRift, tileRift];
     const roxo = tilePortal(['#2c1a4a', '#b45cff', '#7f3fd8']), verde = tilePortal(['#1a3a24', '#7fd858', '#3f9a4a']);
     defs[T.PORTAL] = [roxo, roxo, roxo];
     defs[T.PORTAL2] = [verde, verde, verde];
@@ -1236,6 +1447,118 @@
     });
   }
 
+  /* ---- bichos dos mundos 4 a 8 ---- */
+
+  // escorpiao de areia: pincas na frente, cauda erguida com ferrao
+  function escorpiaoFrames() {
+    return [0, 1].map((f) => {
+      const c = mk(16, 12), x = c.getContext('2d');
+      const casco = '#b8743a', cascoD = '#8a4f22', cascoL = '#dda05c';
+      px(x, 3, 11, 10, 1, 'rgba(0,0,0,0.25)');
+      for (let k = 0; k < 3; k++) {                    // patas
+        const y = 6 + k + (((k + f) & 1) ? 1 : 0);
+        px(x, 2, y, 3, 1, cascoD); px(x, 11, y, 3, 1, cascoD);
+      }
+      px(x, 4, 5, 8, 5, casco);                        // corpo
+      px(x, 5, 5, 6, 2, cascoL);
+      px(x, 4, 9, 8, 1, cascoD);
+      px(x, 1, 4, 4, 2, casco); px(x, 11, 4, 4, 2, casco);   // pincas
+      px(x, 0, 3, 2, 2, cascoL); px(x, 14, 3, 2, 2, cascoL);
+      const ty = f ? 1 : 2;                            // cauda
+      px(x, 7, ty + 1, 2, 4, casco);
+      px(x, 8, ty, 3, 2, casco);
+      px(x, 10, ty - (f ? 1 : 0), 2, 2, '#e8e0c0');    // ferrao
+      px(x, 5, 6, 1, 1, '#1d1a24'); px(x, 9, 6, 1, 1, '#1d1a24');
+      return c;
+    });
+  }
+
+  // verme das dunas: so aparece o dorso e a boca redonda cheia de dentes
+  function vermeFrames() {
+    return [0, 1, 2].map((f) => {
+      const c = mk(20, 16), x = c.getContext('2d');
+      if (f === 0) {                                   // cavando: so a areia levantada
+        px(x, 4, 12, 12, 2, '#c3ae76');
+        px(x, 6, 10, 8, 2, '#e8d9a2');
+        px(x, 8, 9, 4, 1, '#f7eec9');
+        return c;
+      }
+      const corpo = '#a05a4a', corpoD = '#743a2f', corpoL = '#c47a62';
+      px(x, 4, 14, 12, 2, 'rgba(0,0,0,0.25)');
+      px(x, 5, 5, 10, 10, corpo);
+      px(x, 6, 4, 8, 2, corpo);
+      px(x, 6, 5, 3, 9, corpoL);
+      px(x, 12, 6, 2, 8, corpoD);
+      for (let k = 0; k < 3; k++) px(x, 5, 7 + k * 3, 10, 1, corpoD);   // aneis
+      disc(x, 10, 6, 4, '#3a1a18');                    // boca
+      const ab = f === 2 ? 3 : 2;
+      disc(x, 10, 6, ab, '#e84c3d');
+      for (let k = 0; k < 6; k++) {                    // dentes
+        const a = (k / 6) * Math.PI * 2;
+        px(x, 10 + Math.cos(a) * 3, 6 + Math.sin(a) * 3, 1, 1, '#eef2ff');
+      }
+      return c;
+    });
+  }
+
+  // lobo do gelo: corpo baixo, pelo azulado e bafo gelado
+  function loboGeloFrames() {
+    return [0, 1].map((f) => {
+      const c = mk(16, 12), x = c.getContext('2d');
+      const pelo = '#9fc4dd', peloD = '#6b93b4', peloL = '#d6ecf7';
+      px(x, 2, 11, 12, 1, 'rgba(0,0,0,0.25)');
+      const s = f ? 1 : 0;
+      px(x, 3, 9 - s, 2, 2 + s, peloD); px(x, 11, 9 - s, 2, 2 + s, peloD);   // patas
+      px(x, 3, 4, 10, 6, pelo);
+      px(x, 4, 4, 8, 2, peloL);
+      px(x, 3, 8, 10, 1, peloD);
+      px(x, 11, 2, 5, 5, pelo);                        // cabeca
+      px(x, 12, 2, 3, 2, peloL);
+      px(x, 15, 4, 1, 2, '#1d1a24');
+      px(x, 13, 4, 1, 1, '#5ce1ff'); px(x, 11, 4, 1, 1, '#5ce1ff');
+      px(x, 11, 1, 1, 2, peloD); px(x, 14, 1, 1, 2, peloD);   // orelhas
+      px(x, 0, 3 - s, 4, 2, pelo);                     // cauda
+      for (let k = 0; k < 3; k++) px(x, 5 + k * 3, 3, 1, 1, peloL);   // pelo eriçado
+      return c;
+    });
+  }
+
+  // harpia do ceu: asas grandes, corpo de penas claras
+  function harpiaFrames() {
+    return [0, 1].map((f) => {
+      const c = mk(18, 14), x = c.getContext('2d');
+      const pena = '#e8e2d0', penaD = '#b0a894', corpo = '#7a6a8a';
+      const wy = f ? 2 : 6;
+      px(x, 0, wy, 6, 4, pena); px(x, 12, wy, 6, 4, pena);
+      px(x, 0, wy + (f ? 3 : -1), 5, 2, penaD); px(x, 13, wy + (f ? 3 : -1), 5, 2, penaD);
+      px(x, 6, 4, 6, 7, corpo);
+      px(x, 7, 3, 4, 3, pena);
+      px(x, 7, 2, 4, 2, '#c85a1a');                    // capuz de penas
+      px(x, 7, 5, 1, 1, '#ffd34d'); px(x, 10, 5, 1, 1, '#ffd34d');
+      px(x, 8, 6, 2, 1, '#e84c3d');                    // bico
+      px(x, 7, 11, 1, 2, '#c8a03a'); px(x, 10, 11, 1, 2, '#c8a03a');   // garras
+      return c;
+    });
+  }
+
+  // olho do vazio: esfera com pupila que segue e aneis roxos
+  function olhoFrames() {
+    return [0, 1, 2].map((f) => {
+      const c = mk(14, 14), x = c.getContext('2d');
+      disc(x, 7, 7, 6, '#2a1f45');
+      disc(x, 7, 7, 5, '#e8e2f7');
+      const ox = f === 1 ? 1 : f === 2 ? -1 : 0;
+      disc(x, 7 + ox, 7, 3, '#b45cff');
+      disc(x, 7 + ox, 7, 2, '#1a0f2a');
+      px(x, 6 + ox, 5, 1, 1, '#ffffff');
+      for (let k = 0; k < 6; k++) {                    // aneis de energia
+        const a = (k / 6) * Math.PI * 2 + f * 0.4;
+        px(x, 7 + Math.cos(a) * 7, 7 + Math.sin(a) * 7, 1, 1, '#7f3fd8');
+      }
+      return c;
+    });
+  }
+
   // chefe GROK: goblin machadeiro gigante, elmo com chifres e machado duplo
   function bossGrok(dir, f) {
     const base = mk(16, 16), b = base.getContext('2d');
@@ -1707,6 +2030,23 @@
       machadeiro, xama, cacador, bombardeiro, golem,
       grok: grokSet, troll: trollSet, arquimago: arquiSet,
       machado: axeFrames(), bomba: bombFrames(), aranha: spiderFrames(),
+      escorpiao: escorpiaoFrames(), verme: vermeFrames(), lobogelo: loboGeloFrames(),
+      harpia: harpiaFrames(), olhovazio: olhoFrames(),
+      caco: slimeFrames(11, '#8a4ad8', '#4f2a8a', '#d8b4ff'),
+      ventoOrb: orbFrames('#bfe4ff', '#6fb2ef', '#ffffff'),
+      geloOrb: orbFrames('#9fd8ee', '#4f93b8', '#eaffff'),
+      nomade: charSet(
+        { skin: '#c88a4a', hair: '#2a1a12', body: '#d9c78c', bodyD: '#b39a62', trim: '#8a2f2f', boot: '#6b4a2a' },
+        { cap: '#8a2f2f' }),
+      oraculo: charSet(
+        { skin: '#d8e8f2', hair: '#bfe4ff', body: '#4f93b8', bodyD: '#356f92', trim: '#eaffff', boot: '#2f5a74' },
+        { hat: '#6fb6d8', hatD: '#356f92' }),
+      imp: charSet(
+        { skin: '#c8431a', hair: '#2c2428', body: '#3a2f33', bodyD: '#1b1420', trim: '#ffab3d', boot: '#1b1420' },
+        { ears: true, mouth: '#ffe680' }),
+      golemLava: escalaSet(charSet(
+        { skin: '#5c4a50', hair: '#3a2f33', body: '#4a3c42', bodyD: '#2c2428', trim: '#ffab3d', boot: '#2c2428' },
+        { cap: '#c8431a', mouth: '#ffe680' }), 2),
       bruxa, lanceiro, besteiro, feiticeiro, cavNegro,
       reiSapo: reiSapoSet, reiSombrio: reiSombrioSet,
       sapo: sapoFrames('#5a9a3a', '#3a6a28', '#8ac05a', false),

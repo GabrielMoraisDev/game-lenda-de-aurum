@@ -16,19 +16,31 @@
     // castelo
     CFLOOR: 31, CFLOOR2: 32, CWALL: 33, BANNER: 34, PILLAR: 35, LAVA: 36, THRONE: 37,
     // portais do mundo aberto (roxo = castelo, verde = pantano)
-    PORTAL: 38, PORTAL2: 39
+    PORTAL: 38, PORTAL2: 39,
+    // mundo 4: deserto dos espelhos
+    DUNE: 40, DUNE2: 41, SANDSTONE: 42, CACTUS: 43, GLASS: 44,
+    // mundo 5: geleira
+    SNOW: 45, ICE: 46, ICE_WALL: 47, PINE: 48,
+    // mundo 6: forja
+    BASALT: 49, EMBER: 50, OBSIDIAN: 51,
+    // mundo 7: ilhas do ceu
+    CLOUD: 52, SKY: 53, SKYSTONE: 54,
+    // mundo 8: o vazio
+    VOID: 55, STARS: 56, VOIDWALL: 57, RIFT: 58
   };
   G.T = T;
 
   const SOLID = new Uint8Array(64);
   [T.WATER, T.TREE, T.ROCK, T.BUSH, T.WALL, T.CRACKED, T.DOOR_LOCKED,
    T.CAVE, T.PIT, T.TORCH, T.BLOCK, T.STATUE, T.SIGN,
-   T.SWAMP_WATER, T.DEAD_TREE, T.CWALL, T.BANNER, T.PILLAR, T.LAVA, T.THRONE].forEach((t) => { SOLID[t] = 1; });
+   T.SWAMP_WATER, T.DEAD_TREE, T.CWALL, T.BANNER, T.PILLAR, T.LAVA, T.THRONE,
+   T.SANDSTONE, T.CACTUS, T.ICE_WALL, T.PINE, T.OBSIDIAN, T.SKYSTONE, T.SKY,
+   T.VOIDWALL, T.RIFT].forEach((t) => { SOLID[t] = 1; });
   G.SOLID = SOLID;
 
   // tiles que voam por cima (morcegos, projeteis) podem atravessar
   const FLYABLE = new Uint8Array(64);
-  [T.WATER, T.PIT, T.SWAMP_WATER, T.LAVA].forEach((t) => { FLYABLE[t] = 1; });
+  [T.WATER, T.PIT, T.SWAMP_WATER, T.LAVA, T.SKY, T.RIFT].forEach((t) => { FLYABLE[t] = 1; });
 
   /* ---------------- colisao ---------------- */
 

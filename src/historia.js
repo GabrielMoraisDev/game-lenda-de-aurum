@@ -1,6 +1,6 @@
 /* historia.js - abertura cinematografica: cenas desenhadas por codigo, legenda
    digitada e a trilha "historia". ENTER pula tudo, J avanca uma cena.
-   Tambem conta o final, quando os seis fragmentos voltam. */
+   Tambem conta o final, quando os dezesseis fragmentos voltam. */
 (function (G) {
   'use strict';
 
@@ -208,7 +208,7 @@
       }
     },
     {
-      texto: 'OS PEDACOS DO CORACAO SE ESPALHARAM: SEIS FRAGMENTOS, CADA UM NAS GARRAS DE UM GUARDIAO DAS FENDAS.',
+      texto: 'OS PEDACOS DO CORACAO SE ESPALHARAM POR OITO MUNDOS: DEZESSEIS FRAGMENTOS, CADA UM NAS GARRAS DE UM GUARDIAO DAS FENDAS.',
       desenha(c, t, h) {
         px(c, 0, 0, W, ARTE, '#070812'); estrelas(c, t, 50);
         const voa = Math.max(0, t - 140) * 0.7;
@@ -258,7 +258,7 @@
 
   G.CENAS_FIM = [
     {
-      texto: 'OS SEIS FRAGMENTOS VOLTARAM A BATER JUNTOS.',
+      texto: 'OS DEZESSEIS FRAGMENTOS VOLTARAM A BATER JUNTOS.',
       som: (t) => t > 150 && t % 50 === 0 ? 'batida' : null,
       desenha(c, t, h) {
         px(c, 0, 0, W, ARTE, '#070812'); estrelas(c, t, 50);

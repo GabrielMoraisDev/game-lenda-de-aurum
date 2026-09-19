@@ -106,7 +106,7 @@ gravada no save.
 Na tela de seleção os heróis ficam em duas linhas: setas para os lados passam por todos, para cima e
 para baixo trocam de linha.
 
-Cada 2 fragmentos sobem o dano de qualquer uma delas um nível (poder ×2, ×3 e ×4 com os seis).
+Cada 4 fragmentos sobem o dano de qualquer uma delas um nível (poder ×2, ×3, ×4 e ×5 com os dezesseis).
 
 ### Tiro carregado (arqueiro)
 
@@ -171,7 +171,7 @@ sala, voa reto 160 px e some. Libera com **10 abates**, barra dourada no HUD.
 
 O ataque (J) varre o **cajado em arco de 180°**, igual à espada do guerreiro, com o dano normal do mago
 (2, ou 4 com o fragmento). No meio da varredura sai a magia do elemento atual. Os elementos seguem uma
-**ordem ponderada**: **7 tiros de fogo, 4 de gelo e 2 de raio**, e recomeça. O HUD mostra o elemento
+**ordem ponderada**: **10 tiros de fogo, 2 de gelo, 5 de fogo e 1 de raio**, e recomeça. O HUD mostra o elemento
 atual, quantos tiros faltam dele (ex.: `FOGO x5`) e qual vem depois:
 
 | Elemento | Dano do tiro | Efeito |
@@ -188,13 +188,12 @@ Abates pela queimadura contam para quem lançou o fogo no competitivo.
 
 | Tecla | Habilidade | O que faz | Libera com |
 |---|---|---|---|
-| **X** | Tempestade de raios | Ergue o cajado e bate no chão: saem raios do mago até **todos os inimigos da sala**, que levam **1 de dano** e ficam **paralisados por 7 s** | 3 abates |
+| **X** | Inferno | Ergue o cajado e bate no chão: um anel de fogo sai do mago e **paralisa todos da sala por 3 s**. **Não causa dano nenhum**: é controle puro | 3 abates |
 | **C** | Escudo arcano | Uma bolha azul em volta do mago: **invulnerável por 6 s** (nada causa dano, nem queimadura ou choque); pisca no último 1,5 s | 6 abates |
-| **V** | Inferno | Ergue o cajado e bate no chão: um anel de fogo sai do mago e **todos os inimigos pegam fogo e morrem** em 1 s | 10 abates |
+| **V** | Tempestade de raios | Ergue o cajado e bate no chão: saem raios do mago até **todos os inimigos da sala**, que levam **1 de dano** e ficam **paralisados por 7 s**. É a única das três que fere | 10 abates |
 
 O golpe no chão leva 1/3 de segundo erguendo o cajado; levar dano nesse meio cancela sem gastar o
-especial. O X paralisa por 7 s qualquer um: monstros, chefes e, no VS, o oponente. No V os chefes levam
-1/3 da vida e queimam; no VS o oponente só pega fogo.
+especial. Os dois pegam qualquer um: monstros, chefes e, no VS, o oponente.
 
 ### O guerreiro
 
@@ -207,22 +206,20 @@ quatro diagonais em 3/4), mais duas poses de golpe por direção (preparação e
 
 ### Especiais do guerreiro — X, C e V
 
-Mesmas teclas do arqueiro, com barras no HUD e abates que faltam na pausa. O X não depende de abates: recarrega em 3 s e **não deixa invulnerável** (pode levar dano
+Mesmas teclas do arqueiro, com barras no HUD e abates que faltam na pausa. O X não depende de abates: recarrega em 5 s e **não deixa invulnerável** (pode levar dano
 durante o dash, o que interrompe a investida). A investida relâmpago (V) deixa o guerreiro **invulnerável por 3 s, piscando**,
 contados a partir do golpe, e ele fica intocável durante o tornado (C) e o relâmpago. Nenhum dos três troca de sala nem pega
 escada no meio.
 
 | Tecla | Especial | O que faz | Dano | Libera com |
 |---|---|---|---|---|
-| X (tapa) | Investida | dash com a espada à frente, 4 blocos (64 px) | 1× a espada | sempre (3 s de recarga) |
-| X (segurado) | Investida longa | segure até a barra aparecer (1 s): ao soltar, atravessa a sala até a parede ou a borda | 1× | sempre (3 s de recarga) |
-| X (barra cheia, 1,5 s) | Investida máxima | igual à longa | **3×** | sempre (3 s de recarga) |
+| X | Investida | **um aperto** (não precisa segurar): atravessa a sala até a parede ou a borda, com a espada à frente | **3×** a espada | sempre (5 s de recarga) |
 | C | Tornado | **3 s girando** e correndo atrás do inimigo mais próximo com **o dobro da velocidade** de andar; cada volta acerta de novo | **2×** por volta | 6 abates |
 | V | Investida relâmpago | avança em cada inimigo da sala, um por vez (sempre o mais próximo), atravessando paredes; quem é atingido fica **paralisado 5 s** | **4×** em cada | 10 abates |
 
 Na investida cada inimigo leva o golpe uma vez. A relâmpago termina onde caiu o último inimigo;
 se esse lugar for parede ou buraco, o guerreiro volta ao ponto de partida. Sem inimigos na sala ela
-não sai e não gasta o especial. Enquanto segura o X o guerreiro anda devagar e mira com a espada.
+não sai e não gasta o especial.
 
 ### O ninja
 
@@ -386,7 +383,7 @@ piscam em branco no momento do abate.
 Há muito tempo, Aurum era um só mundo, sustentado pelo **Coração do Mundo**. No dia do **Colapso** o Coração
 rachou e o mundo se partiu em mil universos. Das rachaduras nasceram as **fendas**; elas se fundiram umas nas
 outras e abriram **portais** por toda a terra. Pelos portais vieram criaturas estranhas, de mundos que nunca
-deviam se tocar, e elas caçam o que restou dos humanos. Os pedaços do Coração se espalharam: **seis fragmentos**,
+deviam se tocar, e elas caçam o que restou dos humanos. Os pedaços do Coração se espalharam por oito mundos: **dezesseis fragmentos**,
 cada um nas garras de um **guardião das fendas**. Você é um dos últimos heróis: atravesse os portais, derrote os
 monstros e **resgate os fragmentos do mundo**.
 
@@ -395,12 +392,12 @@ monstros e **resgate os fragmentos do mundo**.
 Todo jogo novo (solo ou cooperativo) começa com uma **abertura em cenas**, como um vídeo: o mundo inteiro
 girando, o Coração batendo, o Colapso (tela treme, clarão, o cristal racha), o planeta se partindo em pedaços,
 portais se abrindo sobre os morros, olhos vermelhos saindo de um portal enquanto as luzes da vila se apagam, os
-seis fragmentos sendo levados, e o seu herói no alto de uma colina ao pôr do sol. As legendas são digitadas letra
+os fragmentos sendo levados, e o seu herói no alto de uma colina ao pôr do sol. As legendas são digitadas letra
 a letra e tocam sobre uma **trilha própria** (`historia`: lenta, em Lá menor, com acordes longos Am–F–C–G / Am–F–G–E).
 **ENTER pula a história**; **J** avança uma cena. Ao atravessar o último portal, um final no mesmo estilo mostra
 os fragmentos se juntando, o planeta se refazendo e as luzes da vila voltando.
 
-## A campanha: três mundos de 12 salas
+## A campanha: oito mundos de 12 salas
 
 Cada mundo tem **12 salas diferentes** em sequência (grid 4×3, percorrido em serpente), sempre com a mesma lógica:
 
@@ -417,7 +414,8 @@ Cada mundo tem **12 salas diferentes** em sequência (grid 4×3, percorrido em s
 
 Só **6 das 12 salas** têm inimigos. Os dois guardiões têm **muita vida**, e **todo golpe deles tira 1 coração e
 meio** (contato, tiros, ondas, raios). O F e a bola de fogo tiram só **1/6** da vida deles (nos chefes antigos, 1/3).
-Cada guardião solta um **fragmento**; a cada 2 fragmentos o dano das armas sobe um nível (poder ×2, ×3, ×4).
+Cada guardião solta um **fragmento** (são **16 no total**, 2 por mundo); a cada 4 fragmentos o dano das armas
+sobe um nível (poder ×2, ×3, ×4 e ×5).
 Salas de guardião se fecham até ele cair.
 
 | Mundo | Cenário | Inimigos | Puzzle |
@@ -425,6 +423,11 @@ Salas de guardião se fecham até ele cair.
 | **1 - Aurum Fraturado** | campo | goblins, slimes, morcegos, machadeiros, arqueiros, aranhas, caçadores, bombardeiros | **Runas de luz**: 3×3 runas; pisar numa inverte ela e as vizinhas; acenda todas |
 | **2 - Pântano das Fendas** | pântano | sapos, mosquitos, slimes, bruxas, aranhas, xamãs, fantasmas | **Canção do totem**: o totem acende uma sequência de cores; pise nas pedras na mesma ordem (3, 4 e 5 notas) |
 | **3 - Cidadela do Vazio** | castelo | lanceiros, besteiros, gárgulas, esqueletos, feiticeiros, cavaleiros, golens | **Runas do mural**: 5 runas com 4 símbolos; pisar gira a runa e as duas do lado; iguale o mural |
+| **4 - Deserto dos Espelhos** | dunas, arenito, cactos e chão de vidro | escorpiões, nômades, vermes das dunas, aranhas, caçadores, bombardeiros | **Runas do mural** |
+| **5 - Geleira do Silêncio** | neve, gelo liso, pinheiros e paredes de gelo | lobos do gelo, oráculos do gelo, slimes, morcegos, cavaleiros, golens | **Runas de luz** |
+| **6 - Forja do Mundo** | basalto, brasa, obsidiana e rios de lava | imps, golens de magma, machadeiros, gárgulas, besteiros, feiticeiros | **Canção do totem** |
+| **7 - Ilhas do Céu** | nuvem firme, pedra flutuante e abismo azul | harpias, silfos do vento, morcegos, gárgulas, besteiros, xamãs | **Runas do mural** |
+| **8 - O Vazio Entre Mundos** | chão de estrelas, fendas abertas e muralhas negras | cacos do vazio, olhos do vazio, fantasmas, feiticeiros, cavaleiros | **Runas de luz** |
 
 Nos puzzles de runas há uma **pedra vermelha**. A pedra vermelha só existe no **Fácil**: pisar nela recomeça
 o puzzle e mostra a **dica** (as runas da solução, calculada a partir do estado atual, piscam com moldura azul;
@@ -436,11 +439,11 @@ Depois de escolher o herói aparece a tela de **dificuldade** (setas escolhem, E
 qualquer hora no menu (Esc), aba **MAPA**, com cima/baixo; a escolha fica salva. Vale para monstros que nascem
 depois da troca.
 
-| | Vida dos inimigos | Vida dos chefes | Ritmo dos chefes | Tiros, raios, escudos e invocações | Dano que você leva | Golpe de chefe |
-|---|---|---|---|---|---|---|
-| **Fácil** | −30% | metade | 75% (tudo mais lento) | 60% | metade (mínimo 1) | 1 coração |
-| **Médio** | normal | normal | normal | normal | normal | 1 coração e meio |
-| **Difícil** | +40% | +50% | 120% | 135% | +50% | 2 corações e meio |
+| | Vida dos inimigos | Vida dos chefes | Ritmo dos chefes | Tiros, raios, escudos e invocações | Dano que você leva | Golpe de chefe | Moedas por monstro |
+|---|---|---|---|---|---|---|---|
+| **Fácil** | −30% | metade | 75% (tudo mais lento) | 60% | metade (mínimo 1) | 1 coração | **15** (5 moedas de 3) |
+| **Médio** | normal | normal | normal | normal | normal | 1 coração e meio | **8** (4 moedas de 2) |
+| **Difícil** | +40% | +50% | 120% | 135% | +50% | 2 corações e meio | **3** (3 moedas de 1) |
 
 O ritmo vale para tudo que o chefe faz (andar, recarregar, preparar golpes); na batalha do Eco, para a
 velocidade e a quantidade das balas. Os valores ficam em `DIFICULDADES` (`src/game.js`).
@@ -453,7 +456,7 @@ Salas de inimigos já limpas continuam limpas.
 
 No VS a dificuldade não muda nada. Ao cair e voltar (na fonte ou no começo do mundo), o herói volta com a **vida cheia**.
 
-### Os seis guardiões
+### Os dezesseis guardiões
 
 | Mundo | Guardião | Vida | Mecânica |
 |---|---|---|---|
@@ -463,6 +466,17 @@ No VS a dificuldade não muda nada. Ao cair e voltar (na fonte ou no começo do 
 | 2 | **Eco das Fendas** | 500 | **Luta no estilo Undertale** (veja abaixo). |
 | 3 | **O Reflexo** | 300 | Uma cópia sombria do seu herói que **repete cada passo, espelhada**. Golpes só acertam o vidro. A arena tem lava só do lado dele: posicione-se para que o espelho dele caia na **lava** (30 de dano por queimadura). Abaixo da metade o espelho **vira de cabeça para baixo** (copia invertido nos dois eixos). De tempos em tempos o vidro racha e ele te caça sozinho. |
 | 3 | **Coração do Colapso** | 520 | O coração do mundo, podre, parado no centro. **Fase 1**: 4 escudos de cristal giram em volta e protegem o núcleo; quebre todos para expô-lo por 6 s. **Fase 2**: **gravidade** puxa todos para o centro (rolar escapa) enquanto espirais, anéis e ecos dos outros chefes (raios, ondas) caem. **Fase 3**: **o mundo encolhe**: as bordas da arena viram vazio, em dois anéis. |
+
+| 4 | **Rainha Escaravelho** | 190 | **Cava** sob a areia (só aparece o monte de areia e ela fica intocável), sai embaixo de você e ataca. Se enrola numa **bola** que ricocheteia nas paredes: o casco em rotação não sente nada, mas depois do último ricochete ela fica **tonta de barriga para cima** (2× de dano). Também chama ninhadas de escorpiões. |
+| 4 | **Esfinge de Vidro** | 200 | Ergue **4 espelhos** nos cantos da arena. Enquanto sobrar um, os golpes nela atravessam o vidro. Quebre todos e ela fica **exposta por 8 s levando o dobro de dano** — depois ergue os espelhos de novo (um a menos por rodada). Os espelhos também refletem o feixe dela. |
+| 5 | **Titã de Gelo** | 240 | Coberto por **3 placas de armadura de gelo**. Um golpe solto não faz nada: só **3 acertos seguidos em 1,5 s** racham uma placa. Sem armadura ele fica **exposto por 6 s** e depois se recongela. Soco com onda de choque, estilhaços que congelam por 1 s e um sopro que empurra. |
+| 5 | **Arauto do Inverno** | 210 | Traz a **nevasca**: um vento constante empurra você para um lado, e a direção muda de tempos em tempos (a seta de vento sai dele). Derruba **estalactites** marcadas no chão, faz espirais de cacos gelados e solta a **matilha de lobos do gelo**. |
+| 6 | **Mestre Forjador** | 280 | Cada golpe dele **esquenta o martelo** (barra em cima da cabeça): martelada com onda e rasgo, leque de bolas de fogo e jorros de lava no chão. Quando o calor enche, ele para para **esfriar** e nesse tempo leva o **dobro de dano**. |
+| 6 | **Serpente de Magma** | 150 + 6 anéis | O corpo tem **6 anéis** de escama que só passam correndo. Só a **ponta da cauda** pode ser cortada: cada anel cortado encurta e **acelera** a serpente. Com o corpo todo cortado, a cabeça finalmente abre. Cospe magma e deixa poças. |
+| 7 | **Roc dos Ventos** | 240 | Circula **alto demais** para ser atingido, jogando penas-lâmina que ficam espetadas no chão. Desce, mira e **mergulha em linha reta**: se bater na parede, cai no chão e leva **2× de dano**. O vendaval das asas puxa todo mundo para ele. |
+| 7 | **Guardião da Tempestade** | 230 | Fica **ligado a um dos 4 pilares** e nenhum golpe o alcança enquanto o pilar estiver de pé. Derrube o pilar aceso e ele **cai no chão, exposto (2× de dano)**, até se ligar a outro. Sem pilares, fica exposto de vez. Raios marcados no chão e rajadas de faísca. |
+| 8 | **As Três Faces do Vazio** | 330 (uma vida só) | Três máscaras giram em volta do núcleo e **dividem a mesma vida**: bater em qualquer uma vale. Cada face ataca de um jeito (rajada reta, feixe marcado, cacos vivos). A cada terço de vida uma face **se fecha** e as que sobram ficam mais rápidas. |
+| 8 | **Tecelão do Fim** | 620 | O último guardião, em **3 fases**. Tece **fios giratórios** que varreiam a arena (2, depois 3, depois 4): não fique na linha. Chama **ecos dos chefes que você já venceu** (rasgos, estalactites, chuva de penas, poças de lava) e, na fase final, **puxa todo mundo para o centro**. |
 
 ### Batalha estilo Undertale (Eco das Fendas)
 
@@ -499,22 +513,34 @@ ITEM / POUPAR** (setas escolhem, J ou Enter confirma, K ou Esc volta).
   | **Besteiro** | 5 | Mira em qualquer ângulo; virote rápido de 1 coração |
   | **Feiticeiro** | 6 | Anel de 6 orbes sombrios ou levanta esqueletos |
   | **Gárgula** | 7 | Parece uma estátua e não leva dano; quando você chega perto ela acorda, voa e mergulha |
+  | **Escorpião de areia** | 5 | Circula em volta de você e dá uma ferroada que **paralisa 0,75 s** |
+  | **Nômade das dunas** | 6 | Mantém distância e joga a **lâmina curva**, que vai e **volta para a mão** dele |
+  | **Verme das dunas** | 8 | Cava sob a areia (**não dá para acertar**), emerge perto de você, morde e cospe areia; depois some de novo |
+  | **Lobo do gelo** | 5 | Corre em matilha e **arremete deslizando** no gelo |
+  | **Oráculo do gelo** | 7 | Recua e lança 3 orbes que **congelam por 1 s** |
+  | **Imp da forja** | 4 | **Pisca** de um lado para o outro e cospe fogo (2 de dano) |
+  | **Golem de magma** | 16 | Lento e duro; **deixa poças de lava** por onde passa e explode numa poça ao morrer |
+  | **Harpia** | 6 | Voa **alto demais para ser atingida**, depois mergulha em linha reta |
+  | **Silfo do vento** | 5 | Orbita você e solta **rajadas que empurram** |
+  | **Olho do vazio** | 7 | Mantém distância e dispara um **feixe marcado no chão** (2 de dano) |
+  | **Caco do vazio** | 6 | Gosma de escuridão que **se parte em dois** ao morrer, até três vezes |
 
   Quanto mais adiante no mundo, mais inimigos por sala e mais variados.
-- **Moedas**: cada monstro comum **explode em 5 moedas de 3** (15 no total), que voam em arco e caem no chão;
-  quem chegar perto pega (elas são atraídas de 2,5 blocos). Somem depois de 10 s. Às vezes cai um coração.
-  Ajuste em `MOEDAS_POR_MOB` e `MOEDAS_PECAS` (`src/game.js`).
+- **Moedas**: cada monstro comum explode em moedas que voam em arco e caem no chão; quem chegar perto pega
+  (elas são atraídas de 2,5 blocos). Somem depois de 10 s. Às vezes cai um coração. **O total depende da
+  dificuldade**: 15 no Fácil, 8 no Médio e 3 no Difícil. Ajuste em `moedas`/`pecas` dentro de `DIFICULDADES`
+  (`src/game.js`).
 - **Morrer para um chefe**: ao voltar (na fonte ou no começo do mundo) **todos os monstros do mundo renascem**;
   chefes já derrotados e baús abertos continuam como estavam. Morrer numa sala comum não reseta nada.
-- **Progressão**: moedas, corações, recipientes de coração, 6 fragmentos (poder das armas sobe a cada 2),
-  e a habilidade especial como carta na manga a cada 60 s. O portal do terceiro mundo leva ao final.
+- **Progressão**: moedas, corações, recipientes de coração, 16 fragmentos (poder das armas sobe a cada 4),
+  e a habilidade especial como carta na manga a cada 60 s. O portal do oitavo mundo leva ao final.
 - **Extras**: arbustos cortáveis com drop, baús, pedras de lore, fonte de descanso com ponto de retorno,
   save automático em `localStorage`, minimapa na pausa (guardiões em vermelho, portal em roxo), controles de toque no celular.
 
 O Reino de Aurum, as masmorras, o Pântano Sombrio e o Castelo Sombrio da versão anterior (com Grok, Troll,
 Arquimago, Rei Goblin, Lich, Rei Sapo, Hidra, Cavaleiro Negro e Rei Sombrio) continuam no código (`genOverworld`,
 `genDungeon`, `genPantano` em `src/world.js`), mas não fazem parte da campanha; os cenários deles viraram as
-arenas do VS e a base visual dos três mundos.
+arenas do VS e a base visual dos oito mundos.
 
 ### Arte dos cenários
 

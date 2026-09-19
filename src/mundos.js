@@ -170,7 +170,97 @@
     '...............~~....~~.',
     '........................'];
 
-  /* ---------------- os 3 mundos ---------------- */
+  // salas proprias dos mundos novos (mesmo formato: 24x10 do miolo)
+  const SALA_DUNAS = [
+    '..T...................T.',
+    '........,,,.....,,,.....',
+    '...,,,....##.....,,,....',
+    '..,,,,,...##......,,,,..',
+    '........................',
+    '........................',
+    '..,,,,,....##....,,,,,..',
+    '...,,,.....##.....,,,...',
+    '.T....................T.',
+    '........................'];
+  const SALA_OASIS = [
+    '........................',
+    '...T..............T.....',
+    '.....~~~~~~~~~~~~.......',
+    '....~~~~~~~~~~~~~~......',
+    '....~~~~~~~~~~~~~~......',
+    '.....~~~~~~~~~~~~.......',
+    '........................',
+    '..b.b...........b.b.....',
+    '.T..................T...',
+    '........................'];
+  const SALA_GELO = [
+    '........................',
+    '.,,,,,....####....,,,,,.',
+    '.,,,,,....####....,,,,,.',
+    '........................',
+    '....####..........####..',
+    '....####..........####..',
+    '........................',
+    '.,,,,,....####....,,,,,.',
+    '.,,,,,....####....,,,,,.',
+    '........................'];
+  const SALA_CANAIS = [
+    '........................',
+    '..~~~~~~~~....~~~~~~~~..',
+    '........................',
+    '..##................##..',
+    '........................',
+    '........................',
+    '..##................##..',
+    '........................',
+    '..~~~~~~~~....~~~~~~~~..',
+    '........................'];
+  const SALA_PONTES = [
+    '~~~~~..............~~~~~',
+    '~~~~~....,,,,,.....~~~~~',
+    '~~~~,....,,,,,.....,~~~~',
+    '.........,,,,,..........',
+    '........................',
+    '........................',
+    '.........,,,,,..........',
+    '~~~~,....,,,,,.....,~~~~',
+    '~~~~~....,,,,,.....~~~~~',
+    '~~~~~..............~~~~~'];
+  const SALA_ILHAS = [
+    '~~~..................~~~',
+    '~~....##......##.......~',
+    '......##......##........',
+    '........................',
+    '..,,,,,..........,,,,,..',
+    '..,,,,,..........,,,,,..',
+    '........................',
+    '......##......##........',
+    '~~....##......##.......~',
+    '~~~..................~~~'];
+  const SALA_FENDAS = [
+    '........................',
+    '....~.......~.......~...',
+    '....~.......~.......~...',
+    '....~.......~.......~...',
+    '........................',
+    '........................',
+    '.......~.......~........',
+    '.......~.......~........',
+    '.......~.......~........',
+    '........................'];
+  const SALA_ESTRELAS = [
+    ',,,....................,',
+    '...,,,....,,,,....,,,...',
+    '........................',
+    '..##..............##....',
+    '........................',
+    '........................',
+    '....##..............##..',
+    '........................',
+    '...,,,....,,,,....,,,...',
+    ',....................,,,'];
+
+  /* ---------------- os 8 mundos ---------------- */
 
   const MUNDOS = [
     {
@@ -218,6 +308,86 @@
         6: 'O CORACAO DO MUNDO APODRECEU E VIROU O CORACAO DO COLAPSO.\nQUEBRE OS ESCUDOS, RESISTA A GRAVIDADE, NAO DEIXE O MUNDO ENCOLHER.',
         11: 'O ULTIMO PORTAL: GIRE AS RUNAS ATE IGUALAR O MURAL.\nCADA PASSO GIRA A RUNA E AS DUAS DO LADO. NO FACIL, A PEDRA VERMELHA DA UMA DICA.'
       }
+    },
+    {
+      id: 'mundo4', nome: 'MUNDO 4 - DESERTO DOS ESPELHOS', sub: 'ONDE A AREIA GUARDA O QUE VOCE ERA',
+      music: 'deserto', tint: 'rgba(120,90,30,0.12)',
+      pal: { '.': T.DUNE, ',': T.DUNE2, '#': T.SANDSTONE, 'T': T.CACTUS, '~': T.WATER, '=': T.PATH, 'o': T.STATUE, 'b': T.GLASS,
+             borda: T.SANDSTONE, porta: T.PATH, chao2: T.DUNE2, extra: T.GLASS, selo: T.SANDSTONE, placa: T.STATUE },
+      chefes: ['rainha', 'esfinge'],
+      tabela: [['escorpiao', 3], ['nomade', 2], ['aranha', 2], ['verme', 1]],
+      tabela2: [['verme', 2], ['nomade', 2], ['cacador', 2], ['bombardeiro', 1]],
+      puzzle: 'runas',
+      salas: { 1: SALA_DUNAS, 3: SALA_OASIS, 8: SALA_DUNAS },
+      placas: {
+        0: 'A AREIA AQUI E VIDRO MOIDO: CADA DUNA DEVOLVE UM REFLEXO SEU.\nA RAINHA CAVA POR BAIXO. SO DA PARA BATER QUANDO ELA ROLA E BATE NA PAREDE.',
+        6: 'A ESFINGE NAO RESPONDE PERGUNTAS, ELA AS MULTIPLICA.\nQUEBRE OS QUATRO ESPELHOS: SEM ELES, ELA SENTE TUDO EM DOBRO.',
+        11: 'RUNAS DE AREIA: GIRE ATE IGUALAR O MURAL.\nCADA PASSO GIRA A RUNA E AS DUAS DO LADO.'
+      }
+    },
+    {
+      id: 'mundo5', nome: 'MUNDO 5 - GELEIRA DO SILENCIO', sub: 'O MUNDO QUE PAROU NO MEIO DE UM GRITO',
+      music: 'geleira', tint: 'rgba(60,110,160,0.16)',
+      pal: { '.': T.SNOW, ',': T.ICE, '#': T.ICE_WALL, 'T': T.PINE, '~': T.WATER, '=': T.SNOW, 'o': T.ICE_WALL, 'b': T.ICE,
+             borda: T.PINE, porta: T.SNOW, chao2: T.ICE, extra: T.ICE, selo: T.ICE_WALL, placa: T.STATUE },
+      chefes: ['tita', 'arauto'],
+      tabela: [['lobogelo', 3], ['oraculo', 2], ['slime', 2], ['bat', 1]],
+      tabela2: [['oraculo', 2], ['lobogelo', 3], ['knight', 1], ['golem', 1]],
+      puzzle: 'luzes',
+      salas: { 1: SALA_GELO, 4: SALA_GELO, 9: SALA_GELO },
+      placas: {
+        0: 'NADA DERRETE AQUI, NEM O SOM. O QUE VOCE GRITAR FICA NO GELO.\nO TITA SO RACHA COM GOLPES SEGUIDOS: TRES SEM PARAR QUEBRAM UMA PLACA.',
+        6: 'O ARAUTO TRAZ A NEVASCA E O VENTO EMPURRA PARA UM LADO SO.\nOLHE PARA ONDE O VENTO SOPRA E ANDE CONTRA ELE.',
+        11: 'LANTERNAS DE GELO: ACENDA TODAS.\nCADA PASSO MUDA A LUZ E AS VIZINHAS.'
+      }
+    },
+    {
+      id: 'mundo6', nome: 'MUNDO 6 - FORJA DO MUNDO', sub: 'ONDE AURUM FOI MARTELADO PELA PRIMEIRA VEZ',
+      music: 'forja', tint: 'rgba(120,30,0,0.16)',
+      pal: { '.': T.BASALT, ',': T.EMBER, '#': T.OBSIDIAN, 'T': T.OBSIDIAN, '~': T.LAVA, '=': T.BASALT, 'o': T.OBSIDIAN, 'b': T.EMBER,
+             borda: T.OBSIDIAN, porta: T.BASALT, chao2: T.EMBER, extra: T.EMBER, selo: T.OBSIDIAN, tocha: T.TORCH, placa: T.STATUE },
+      chefes: ['forjador', 'serpente'],
+      tabela: [['imp', 3], ['machadeiro', 2], ['gargula', 1], ['golemlava', 1]],
+      tabela2: [['golemlava', 2], ['imp', 3], ['besteiro', 2], ['feiticeiro', 1]],
+      puzzle: 'simon',
+      salas: { 3: SALA_CANAIS, 7: SALA_CANAIS, 9: SALA_CANAIS },
+      placas: {
+        0: 'FOI AQUI QUE BATERAM O PRIMEIRO PEDACO DE AURUM.\nO FORJADOR ESQUENTA O MARTELO A CADA GOLPE: QUANDO ELE PARA PARA ESFRIAR, ATAQUE.',
+        6: 'A SERPENTE DE MAGMA E PEDRA DA CABECA AO MEIO.\nSO A PONTA DA CAUDA CORTA. VA COMENDO O CORPO ATE CHEGAR NELA.',
+        11: 'O TOTEM DE BRASA CANTA UMA SEQUENCIA.\nPISE NAS PEDRAS NA MESMA ORDEM. SAO TRES CANCOES.'
+      }
+    },
+    {
+      id: 'mundo7', nome: 'MUNDO 7 - ILHAS DO CEU', sub: 'OS PEDACOS QUE O COLAPSO JOGOU PARA CIMA',
+      music: 'ceu', tint: 'rgba(40,90,170,0.12)',
+      pal: { '.': T.CLOUD, ',': T.SKYSTONE, '#': T.SKYSTONE, 'T': T.SKYSTONE, '~': T.SKY, '=': T.CLOUD, 'o': T.SKYSTONE, 'b': T.CLOUD,
+             borda: T.SKYSTONE, porta: T.CLOUD, chao2: T.CLOUD, extra: T.CLOUD, selo: T.SKYSTONE, placa: T.STATUE },
+      chefes: ['roc', 'guardiao'],
+      tabela: [['harpia', 3], ['silfo', 2], ['bat', 2], ['gargula', 1]],
+      tabela2: [['silfo', 3], ['harpia', 2], ['besteiro', 2], ['xama', 1]],
+      puzzle: 'runas',
+      salas: { 1: SALA_PONTES, 3: SALA_ILHAS, 7: SALA_ILHAS, 9: SALA_PONTES },
+      placas: {
+        0: 'O CHAO AQUI ACABA NO AZUL. O QUE CAI NAO VOLTA.\nO ROC VOA ALTO DEMAIS: SO DA PARA FERI-LO DEPOIS DO MERGULHO.',
+        6: 'O GUARDIAO SE LIGA AOS PILARES E NENHUM GOLPE O ALCANCA.\nDERRUBE O PILAR ACESO E BATA ENQUANTO ELE ESTA NO CHAO.',
+        11: 'RUNAS DE VENTO: GIRE ATE IGUALAR O MURAL.\nCADA PASSO GIRA A RUNA E AS DUAS DO LADO.'
+      }
+    },
+    {
+      id: 'mundo8', nome: 'MUNDO 8 - O VAZIO ENTRE MUNDOS', sub: 'DEPOIS DAQUI NAO TEM MAIS ONDE',
+      music: 'vazio', tint: 'rgba(30,0,60,0.22)',
+      pal: { '.': T.VOID, ',': T.STARS, '#': T.VOIDWALL, 'T': T.VOIDWALL, '~': T.RIFT, '=': T.STARS, 'o': T.VOIDWALL, 'b': T.STARS,
+             borda: T.VOIDWALL, porta: T.STARS, chao2: T.STARS, extra: T.STARS, selo: T.VOIDWALL, placa: T.STATUE },
+      chefes: ['trindade', 'tecelao'],
+      tabela: [['caco', 3], ['olhovazio', 2], ['ghost', 2], ['aranha', 1]],
+      tabela2: [['olhovazio', 3], ['caco', 2], ['feiticeiro', 2], ['knight', 1]],
+      puzzle: 'luzes',
+      salas: { 1: SALA_FENDAS, 3: SALA_ESTRELAS, 7: SALA_FENDAS, 9: SALA_ESTRELAS },
+      placas: {
+        0: 'AQUI NAO TEM CHAO, TEM LEMBRANCA DE CHAO.\nAS TRES FACES DIVIDEM UMA VIDA SO: BATER EM QUALQUER UMA VALE.',
+        6: 'O TECELAO SEGURA OS FIOS QUE PRENDEM OS OITO MUNDOS.\nNAO FIQUE NA LINHA DOS FIOS. ELE VAI CHAMAR OS CHEFES QUE VOCE JA VENCEU.',
+        11: 'AS ULTIMAS LUZES DE AURUM: ACENDA TODAS E VOLTE PARA CASA.'
+      }
     }
   ];
   G.MUNDOS = MUNDOS;
@@ -225,7 +395,12 @@
   // onde cada chefe nasce (padrao: no meio, perto do topo)
   const CHEFE_POS = {
     coracao: { x: MX * TILE - 16, y: MY * TILE - 18 },
-    eco: { x: MX * TILE - 10, y: 3 * TILE }
+    eco: { x: MX * TILE - 10, y: 3 * TILE },
+    serpente: { x: MX * TILE - 9, y: MY * TILE - 9 },
+    trindade: { x: MX * TILE - 10, y: MY * TILE - 10 },
+    tecelao: { x: MX * TILE - 15, y: MY * TILE - 15 },
+    roc: { x: MX * TILE - 15, y: 3 * TILE },
+    guardiao: { x: MX * TILE - 11, y: MY * TILE - 12 }
   };
 
   // direcao de a para b no grid
@@ -308,7 +483,7 @@
         room.type = 'entry';
       } else if (papel === 'inimigos') {
         const tabela = s >= 7 ? M.tabela.concat(M.tabela2) : s >= 3 ? M.tabela.concat(M.tabela2.slice(0, 2)) : M.tabela;
-        const count = 3 + n + (s >= 7 ? 1 : 0) + ((r() * 2) | 0);
+        const count = 3 + Math.min(4, n) + (s >= 7 ? 1 : 0) + ((r() * 2) | 0);
         for (let k = 0; k < count; k++) {
           const type = U.sorteia(tabela, r);
           const pos = posInimigo(room, r, type === 'golem', portas);

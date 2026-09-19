@@ -30,18 +30,20 @@
   const COR_P = ['#ffd34d', '#5ce1ff'];  // marcador do jogador 1 e 2
   const BRANCO_CHEIO = 24, BRANCO_FADE = 72;   // meteoro: quadros de branco total e de fade
   const GAP_X = G.GAP_X, GAP_Y = G.GAP_Y;   // aberturas das salas (world.js)
-  const FRAGMENTOS = 6;                   // 2 guardioes por mundo, 3 mundos
-  const MOEDAS_POR_MOB = 15;              // cada monstro comum explode em moedas que somam 15
-  const MOEDAS_PECAS = 5;                 // ... em 5 moedas de 3
+  const FRAGMENTOS = 16;                  // 2 guardioes por mundo, 8 mundos
+  const FRAG_POR_NIVEL = 4;               // a cada 4 fragmentos o poder das armas sobe um nivel
   // dificuldade: vida dos inimigos e chefes e dano que o heroi leva
   const DIFICULDADES = [
   // vida: monstros comuns; chefeVida: chefes; ritmo: velocidade dos chefes; tiros: quantidade de ataques dos chefes
     { nome: 'FACIL', cor: '#7fd858', vida: 0.7, chefeVida: 0.5, dano: 0.5, ritmo: 0.75, tiros: 0.6, dicas: true,
-      desc: ['CHEFES COM METADE DA VIDA, MAIS LENTOS E COM MENOS TIROS', 'INIMIGOS COM 30% MENOS VIDA', 'VOCE LEVA METADE DO DANO (CHEFES: 1 CORACAO)', 'PEDRA DE DICAS NOS PUZZLES'] },
+      moedas: 15, pecas: 5,
+      desc: ['CHEFES COM METADE DA VIDA, MAIS LENTOS E COM MENOS TIROS', 'INIMIGOS COM 30% MENOS VIDA', 'VOCE LEVA METADE DO DANO (CHEFES: 1 CORACAO)', 'CADA MONSTRO DA 15 MOEDAS', 'PEDRA DE DICAS NOS PUZZLES'] },
     { nome: 'MEDIO', cor: '#ffd34d', vida: 1, chefeVida: 1, dano: 1, ritmo: 1, tiros: 1,
-      desc: ['O JOGO COMO FOI PENSADO', 'CHEFES TIRAM 1 CORACAO E MEIO'] },
+      moedas: 8, pecas: 4,
+      desc: ['O JOGO COMO FOI PENSADO', 'CHEFES TIRAM 1 CORACAO E MEIO', 'CADA MONSTRO DA 8 MOEDAS'] },
     { nome: 'DIFICIL', cor: '#e33b4e', vida: 1.4, chefeVida: 1.5, dano: 1.5, ritmo: 1.2, tiros: 1.35,
-      desc: ['CHEFES COM 50% MAIS VIDA, MAIS RAPIDOS E COM MAIS TIROS', 'INIMIGOS COM 40% MAIS VIDA', 'VOCE LEVA 50% MAIS DANO (CHEFES: 2 CORACOES E MEIO)'] }
+      moedas: 3, pecas: 3,
+      desc: ['CHEFES COM 50% MAIS VIDA, MAIS RAPIDOS E COM MAIS TIROS', 'INIMIGOS COM 40% MAIS VIDA', 'VOCE LEVA 50% MAIS DANO (CHEFES: 2 CORACOES E MEIO)', 'CADA MONSTRO DA SO 3 MOEDAS'] }
   ];
   const DIF_KEY = 'aurum_dificuldade';
 
@@ -136,7 +138,9 @@
     }
 
     geraMundos(seed) {
-      return { mundo1: G.genMundo(seed, 1), mundo2: G.genMundo(seed, 2), mundo3: G.genMundo(seed, 3) };
+      const out = {};
+      for (let n = 1; n <= G.MUNDOS.length; n++) out['mundo' + n] = G.genMundo(seed, n);
+      return out;
     }
 
     contaHistoria(cenas, depois) {
@@ -329,15 +333,21 @@
 
     spawnPickup(x, y, kind) { this.ents.push(new G.Pickup(x, y, kind)); }
 
-    // o monstro explode em moedas que voam para os lados e caem no chao; as vezes cai um coracao
+    // o monstro explode em moedas que voam para os lados e caem no chao; as vezes cai um coracao.
+    // o total por monstro vem da dificuldade: facil 15, medio 8, dificil 3
     dropLoot(e) {
+      const d = this.dif();
+      const total = d.moedas === undefined ? 8 : d.moedas;
+      const pecas = Math.max(1, d.pecas === undefined ? 4 : d.pecas);
       const a0 = Math.random() * Math.PI * 2;
-      for (let k = 0; k < MOEDAS_PECAS; k++) {
+      let resto = total;
+      for (let k = 0; k < pecas; k++) {
         const pk = new G.Pickup(e.cx, e.cy, 'coin');
-        const a = a0 + (k / MOEDAS_PECAS) * Math.PI * 2 + (Math.random() - 0.5) * 0.5, v = 1.3 + Math.random() * 1.2;
+        const a = a0 + (k / pecas) * Math.PI * 2 + (Math.random() - 0.5) * 0.5, v = 1.3 + Math.random() * 1.2;
         pk.vx = Math.cos(a) * v; pk.vy = Math.sin(a) * v - 1.6;   // arco para cima e para os lados
         pk.pop = 18;
-        pk.valor = MOEDAS_POR_MOB / MOEDAS_PECAS;
+        pk.valor = k === pecas - 1 ? resto : Math.round(total / pecas);   // a ultima leva a sobra
+        resto -= pk.valor;
         this.ents.push(pk);
       }
       if (Math.random() < 0.18) this.spawnPickup(e.cx, e.cy, 'heart');
@@ -397,15 +407,15 @@
       this.particles.burst(p.cx, p.cy, 6, 1, 1.4, 14);
     }
 
-    // 6 fragmentos (2 por mundo); a cada 2, o poder das armas sobe um nivel
+    // 16 fragmentos (2 por mundo); a cada 4, o poder das armas sobe um nivel
     giveShard() {
       const p = this.player;
       p.shards += 1;
-      const nivel = 1 + Math.floor(p.shards / 2);
+      const nivel = 1 + Math.floor(p.shards / FRAG_POR_NIVEL);
       for (const o of this.players) o.sword = Math.max(o.sword, nivel);
       Sound.play('secret');
       this.say('FRAGMENTO DO MUNDO ' + p.shards + '/' + FRAGMENTOS + ' RESGATADO!' +
-        (p.shards % 2 === 0 ? '\n' + p.def.arma + ' MAIS FORTE: PODER x' + nivel : ''), 220);
+        (p.shards % FRAG_POR_NIVEL === 0 ? '\n' + p.def.arma + ' MAIS FORTE: PODER x' + nivel : ''), 220);
       this.save();
     }
 
@@ -587,7 +597,7 @@
       if (t !== G.T.PORTAL || !this.level.mundo || !this.room.meta.puzzle) return false;
       Sound.play('stairs');
       const n = this.level.mundo;
-      if (n >= 3) {
+      if (n >= G.MUNDOS.length) {
         this.fadeTo(() => this.contaHistoria(G.CENAS_FIM, () => { this.state = 'win'; Music.set('win'); }));
         return true;
       }
@@ -1509,11 +1519,14 @@
       this.text(c, String(p.coins).padStart(3, '0'), R + 11, 12, '#ffd34d');
       c.drawImage(S.key, R, 16);
       this.text(c, 'x' + this.player.keys, R + 11, 23, '#ffd34d');
-      for (let i = 0; i < FRAGMENTOS; i++) {         // 6 fragmentos em 2 fileiras
-        c.globalAlpha = i < this.player.shards ? 1 : 0.22;
-        c.drawImage(S.shard, VIEW_W - 64 + (i % 3) * 11, 3 + ((i / 3) | 0) * 13, 10, 10);
-        c.globalAlpha = 1;
-      }
+      // fragmentos: icone + contador (sao 16, nao cabem um a um)
+      c.globalAlpha = this.player.shards ? 1 : 0.3;
+      c.drawImage(S.shard, VIEW_W - 64, 4, 10, 10);
+      c.globalAlpha = 1;
+      this.text(c, this.player.shards + '/' + FRAGMENTOS, VIEW_W - 52, 12,
+        this.player.shards >= FRAGMENTOS ? '#7ff2ff' : '#b45cff');
+      const mundoAtual = this.level.mundo || 0;
+      if (mundoAtual) this.text(c, 'MUNDO ' + mundoAtual + '/' + G.MUNDOS.length, VIEW_W - 64, 23, '#5c667e');
 
       // habilidade: bola de fogo (tecla C)
       const ready = p.fireCd === 0;
