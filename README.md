@@ -39,7 +39,7 @@ pelo `servidor.js`, ele percebe (rota `/aurum-servidor`) e usa o WebSocket local
 |---|---|
 | **Cooperativo** | O jogo normal com os dois. Quem cair volta em 4 s ao lado do parceiro; se os dois caírem, é fim de jogo. Chaves e fragmentos valem para o grupo. |
 | **Competitivo** | 3 minutos: quem matar mais bichos vence. Aparecem inimigos novos o tempo todo na sala (até 6 vivos). Quem cair volta em 3 s. Placar e cronômetro no topo da tela. |
-| **VS** | Um contra o outro numa **arena fechada** (sem saídas), escolhida por quem cria a sala: Campo de Aurum, Caverna dos Goblins, Pântano Sombrio ou Castelo Sombrio. Sem monstros, **20 de vida** cada, mostrada em **barra** (no HUD e no placar do topo). Todos os ataques e especiais acertam o oponente (todo F — onda de choque, bola de fogo, meteoro, explosivos, tsunami e bomba nuclear — tira 2, o dobro de uma espada comum). X, C e V liberam com o **dano causado no oponente**: 3, 6 e 10 pontos de vida tirados. |
+| **VS** | Um contra o outro numa **arena fechada** (sem saídas), escolhida por quem cria a sala: Campo de Aurum, Caverna dos Goblins, Pântano Sombrio ou Castelo Sombrio. Sem monstros, **20 de vida** cada, mostrada em **barra** (no HUD e no placar do topo). Todos os ataques e especiais acertam o oponente (todo F — onda de choque, bola de fogo, meteoro, explosivos, tsunami, bomba nuclear e os F dos heróis novos — tira 2, o dobro de uma espada comum). X, C e V liberam com o **dano causado no oponente**: 3, 6 e 10 pontos de vida tirados. |
 
 No fim do competitivo e do VS, o anfitrião aperta ENTER para jogar de novo ou ESC para sair.
 
@@ -57,12 +57,13 @@ o jogador 1 e uma azul o jogador 2. O multijogador não mexe no save do modo sol
 | Atacar (espada, flecha ou magia) | J ou Z | A / X | botão A |
 | Rolar / dash (invulnerável; 2× mais longo no arqueiro) | Espaço, K ou Shift | B / RB | botão ROL |
 | **Habilidade especial** (recarga de 60 s, a única com recarga) | F | Y / RT | botão F |
-| **Salva de flechas** (arqueiro; segure para 4 salvas) / **Investida** (guerreiro; segure para carregar; sem abates, só 1 s de espera) / **Tempestade de raios** (mago) / **Estrelas ninja** (ninja) / **Tridente arremessado** (Percy; sem abates, 3 s de espera) / **3 minas** (bomber) — libera com **3 abates** | X | LT / LB | botão X |
+| **Salva de flechas** (arqueiro; segure para 4 salvas) / **Investida** (guerreiro; segure para carregar; sem abates, recarrega em 3 s) / **Tempestade de raios** (mago) / **Estrelas ninja** (ninja) / **Tridente arremessado** (Percy; sem abates, 3 s de espera) / **3 minas** (bomber) — libera com **3 abates** | X | LT / LB | botão X |
 | **4 giros de 360°** (arqueiro) / **Tornado** (guerreiro) / **Escudo** (mago) / **Velocidade** (ninja) / **Barreira de água** (Percy) / **Escudo de bombas** (bomber) — libera com **6 abates** | C | RB / R3 | botão C |
-| **Flecha dourada** (arqueiro) / **Investida relâmpago** (guerreiro) / **Inferno** (mago) / **Névoa de veneno** (ninja) / **Redemoinho** (Percy) / **Bomba grudenta** (bomber) — libera com **10 abates** | V | L3 | botão V |
+| **Flecha dourada** (arqueiro) / **Investida relâmpago** (guerreiro) / **Inferno** (mago) / **Névoa de veneno** (ninja) / **Redemoinho** (Percy) / **Bomba quicante** (bomber) — libera com **10 abates** | V | L3 | botão V |
 | Escolher herói / confirmar | setas + Enter | direcional + Start | d-pad + ≡ |
 | Começar / continuar | Enter | Start | ≡ |
 | Menu: loja e mapa (pausa no solo) | Esc ou P | Select | ≡ |
+| **Teleporte** para uma sala já visitada do mundo (não vale em luta com chefe) | T | — | — |
 | Som liga/desliga | M | — | — |
 | Multijogador (tela inicial) | N | — | — |
 | FPS | F3 | — | — |
@@ -82,7 +83,7 @@ cima e para baixo escolhem, J ou Enter compra, ESC fecha. Cada item se compra um
 No solo o jogo fica pausado com o menu aberto. No multijogador **cada jogador abre a sua loja** e
 compra com as próprias moedas; o jogo não pausa — quem está na loja fica parado.
 
-## Os seis heróis
+## Os onze heróis
 
 Ao começar um jogo novo você escolhe a classe na tela de seleção (setas escolhem, Enter confirma).
 Cada uma tem sprites próprios nas 8 direções, ataque diferente e stats diferentes. A classe fica
@@ -96,8 +97,16 @@ gravada no save.
 | **Ninja** | Katana | 5 corações | 1,6 | 2 | Katana em arco de 180° (2× o dano da espada) |
 | **Percy** | Tridente | 5 corações | 1,5 | 1 | Golpe da espada com 1,5× o alcance |
 | **Bomber** | Bombas | 5 corações | 1,4 | 1 | Bombas em arco; a cada 10, uma grande |
+| **Cronomante** | Relógio | 5 corações | 1,5 | 1 | Relógio que deixa o alvo lento |
+| **Necromante** | Foice | 5 corações | 1,4 | 1 | Foice longa (1,3× o alcance) que rouba vida |
+| **Engenheiro** | Rebitadora | 5 corações | 1,5 | 1 | Segure J: tiro automático |
+| **Druida** | Espinhos | 5 corações | 1,5 | 1 | Espinho que prende; vira lobo ou urso |
+| **Vampira** | Rapieira | 5 corações | 1,7 | 1 | Rapieira que rouba vida; abates curam |
 
-O primeiro fragmento dobra o dano de qualquer uma delas (espada, flechas ou cajado de ouro).
+Na tela de seleção os heróis ficam em duas linhas: setas para os lados passam por todos, para cima e
+para baixo trocam de linha.
+
+Cada 2 fragmentos sobem o dano de qualquer uma delas um nível (poder ×2, ×3 e ×4 com os seis).
 
 ### Tiro carregado (arqueiro)
 
@@ -198,16 +207,17 @@ quatro diagonais em 3/4), mais duas poses de golpe por direção (preparação e
 
 ### Especiais do guerreiro — X, C e V
 
-Mesmas teclas do arqueiro, com barras no HUD e abates que faltam na pausa. O X não depende de abates: depois de usar, só espera 1 s. A investida (X) e a investida
-relâmpago (V) deixam o guerreiro **invulnerável por 3 s, piscando**, contados a partir do golpe. Durante qualquer um dos três o
-guerreiro fica intocável, e nenhum deles troca de sala nem pega escada no meio.
+Mesmas teclas do arqueiro, com barras no HUD e abates que faltam na pausa. O X não depende de abates: recarrega em 3 s e **não deixa invulnerável** (pode levar dano
+durante o dash, o que interrompe a investida). A investida relâmpago (V) deixa o guerreiro **invulnerável por 3 s, piscando**,
+contados a partir do golpe, e ele fica intocável durante o tornado (C) e o relâmpago. Nenhum dos três troca de sala nem pega
+escada no meio.
 
 | Tecla | Especial | O que faz | Dano | Libera com |
 |---|---|---|---|---|
-| X (tapa) | Investida | dash com a espada à frente, 4 blocos (64 px) | 1× a espada | sempre (1 s de espera) |
-| X (segurado) | Investida longa | segure até a barra aparecer (1 s): ao soltar, atravessa a sala até a parede ou a borda | 1× | sempre (1 s de espera) |
-| X (barra cheia, 1,5 s) | Investida máxima | igual à longa | **3×** | sempre (1 s de espera) |
-| C | Tornado | **7 s girando** e correndo atrás do inimigo mais próximo com **o dobro da velocidade** de andar; cada volta acerta de novo | **2×** por volta | 6 abates |
+| X (tapa) | Investida | dash com a espada à frente, 4 blocos (64 px) | 1× a espada | sempre (3 s de recarga) |
+| X (segurado) | Investida longa | segure até a barra aparecer (1 s): ao soltar, atravessa a sala até a parede ou a borda | 1× | sempre (3 s de recarga) |
+| X (barra cheia, 1,5 s) | Investida máxima | igual à longa | **3×** | sempre (3 s de recarga) |
+| C | Tornado | **3 s girando** e correndo atrás do inimigo mais próximo com **o dobro da velocidade** de andar; cada volta acerta de novo | **2×** por volta | 6 abates |
 | V | Investida relâmpago | avança em cada inimigo da sala, um por vez (sempre o mais próximo), atravessando paredes; quem é atingido fica **paralisado 5 s** | **4×** em cada | 10 abates |
 
 Na investida cada inimigo leva o golpe uma vez. A relâmpago termina onde caiu o último inimigo;
@@ -247,8 +257,62 @@ Gorro de aviador, roupa verde-oliva e cinto amarelo.
 | J | Bomba | joga uma bomba em arco 3,5 blocos à frente; ela explode ao cair: **2× o dano** num raio de ~1 bloco. **A cada 10 bombas, uma grande** (mais longe, **5×** o dano, raio de ~3 blocos). O HUD mostra quantas faltam | — |
 | X | 3 minas | cada aperto planta uma mina **onde o bomber está** (3 por uso). Arma em 0,5 s e explode quando um alvo pisa nela: 4× o dano num raio de ~2 blocos | 3 abates |
 | C | Escudo de bombas | 6 bombas giram em volta dele por 7 s; cada uma explode ao encostar num alvo (3× o dano) e desfaz tiros inimigos. As que sobrarem **explodem todas juntas** no fim | 6 abates |
-| V | Bomba grudenta | voa até o inimigo mais próximo e gruda nele. **Se ele andar, explode**: monstro morre na hora, chefe leva 1/3 da vida. No VS não mata: tira 4× o dano | 10 abates |
+| V | Bomba quicante | vai **quicando de inimigo em inimigo**, sempre o mais próximo que ainda não atingiu, e explode em cada um: monstro morre na hora, chefe leva 1/3 da vida. Some depois do último. No VS não mata: tira 4× o dano | 10 abates |
 | F | Bomba nuclear | cai no meio da sala; no impacto a tela fica branca e volta com fade. Monstros morrem, chefes levam 1/3 e o oponente no VS leva o dano de F onde estiver | recarga de 60 s |
+
+### Cronomante — controla o tempo
+
+| Tecla | Habilidade | O que faz | Libera com |
+|---|---|---|---|
+| J | Relógio | projétil com 2× o dano; quem é atingido fica **lento por 3 s** (age em metade dos quadros) | — |
+| X | Rebobinar | **volta para onde estava 3 s atrás**, com a vida daquela hora se era maior, e limpa fogo, gelo, paralisia, lentidão e raízes. Deixa um rastro de fantasmas | 3 abates |
+| C | Parar o tempo | **tudo para por 4 s**: monstros, tiros inimigos e, no VS, o oponente. Só o que os jogadores criaram continua andando (e dá para bater em todo mundo) | 6 abates |
+| V | Paradoxo | marca todos com um relógio; **em 3 s cada um sofre de novo o dobro do dano que levou nesse tempo** (no mínimo 2; no VS no máximo 6). Combine com o C | 10 abates |
+| F | Fim dos tempos | o tempo para, um relógio gigante gira e todos viram pó: monstros morrem, chefes levam 1/3 | recarga de 60 s |
+
+### Necromante — mortos-vivos
+
+| Tecla | Habilidade | O que faz | Libera com |
+|---|---|---|---|
+| J | Foice | golpe em arco com 1,3× o alcance; **a cada 4 golpes que acertam, cura meio coração** | — |
+| X | Erguer os mortos | **3 esqueletos aliados por 15 s** que caçam o inimigo mais próximo (2× o dano; no VS, 1 por golpe). Sem inimigos, seguem o necromante | 3 abates |
+| C | Corrente de almas | liga todos os inimigos por 6 s: **o dano que um leva vai para todos os outros**. Precisa de 2 alvos | 6 abates |
+| V | Colheita | uma foice gigante corta a sala: **executa** quem está com metade da vida ou menos (chefe: 1/4 ou menos); os outros levam 3× o dano. Cada execução cura meio coração | 10 abates |
+| F | Portal do submundo | poços abrem sob cada inimigo e mãos os arrastam para baixo: monstros morrem, chefes levam 1/3 | recarga de 60 s |
+
+### Engenheiro — máquinas
+
+| Tecla | Habilidade | O que faz | Libera com |
+|---|---|---|---|
+| J (segure) | Rebitadora | **tiro automático** enquanto segura: um prego a cada 7 quadros, com leve espalhamento. Anda a 55% da velocidade atirando | — |
+| X | Torreta | coloca uma torreta que mira e atira sozinha por 20 s (alcance de 12 blocos). Até 2 ao mesmo tempo; a terceira troca a mais velha | 3 abates |
+| C | Campo refletor | por 6 s, **tiros inimigos que chegam perto voltam** no inimigo mais próximo, com o dobro do dano | 6 abates |
+| V | Laser | 3 s de feixe contínuo até a parede; o engenheiro fica parado **mirando com as setas** (8 direções) e tudo no caminho leva dano a cada 8 quadros | 10 abates |
+| F | Enxame de drones | drones sobem em volta dele e mergulham, **um em cada inimigo**: monstros morrem, chefes levam 1/3 | recarga de 60 s |
+
+### Druida — transformações
+
+| Tecla | Habilidade | O que faz | Libera com |
+|---|---|---|---|
+| J | Espinho / garras | em forma humana atira um espinho que **prende o alvo por 1 s** (raízes). Transformado, ataca com garras em arco | — |
+| X | Forma de lobo | por 12 s: velocidade **2,4** e mordida com **2×** o dano | 3 abates |
+| C | Forma de urso | por 12 s: velocidade 1,1, patada com **3×** o dano e 1,2× o alcance, e **leva metade do dano** | 6 abates |
+| V | Bosque sagrado | chão florido de ~3,5 blocos por 10 s: **cura meio coração a cada 1,5 s** de quem está dentro (os dois no cooperativo) e prende os inimigos dentro, com 1 de dano por segundo | 10 abates |
+| F | Fúria da floresta | raízes com espinhos brotam sob cada inimigo: monstros morrem, chefes levam 1/3 | recarga de 60 s |
+
+### Vampira — paga com sangue
+
+X, C e V **não usam abates: custam vida** (1, 2 e 3 meios-corações) e têm recarga curta (1 s, 5 s e
+10 s). Nunca deixam com 0 de vida: sem sangue suficiente, não saem. Para compensar, **cada abate cura
+meio coração** e a rapieira rouba vida.
+
+| Tecla | Habilidade | O que faz | Custo |
+|---|---|---|---|
+| J | Rapieira | golpe em arco (1,1× o alcance); **a cada 3 golpes que acertam, cura meio coração** | — |
+| X | Lança de sangue | lança que atravessa paredes e todos os inimigos até a borda da sala, 3× o dano | 1 |
+| C | Enxame de morcegos | por 2,5 s vira morcegos: **intocável**, velocidade 3, e cada inimigo que atravessa leva 2× o dano e **cura meio coração** | 2 |
+| V | Banquete | fios de sangue ligam todos a ela: cada um leva 3× o dano e ela cura meio coração por alvo (até 3 corações) | 3 |
+| F | Lua de sangue | a sala fica vermelha e todos são drenados: monstros morrem, chefes levam 1/3, e ela **volta com a vida cheia** | recarga de 60 s |
 
 ### O golpe de espada
 
@@ -291,6 +355,14 @@ círculo chega nas paredes, não sobrou nada vivo: inimigos nos quatro cantos da
 
 ### X, C e V liberam por abate
 
+**Um especial não recarrega a si mesmo:** abates e dano causados pelo X só carregam o C e o V (e assim por diante).
+Vale para tudo que sai do especial: flechas, torretas e seus tiros, lacaios, bombas, névoa, queimadura do Inferno,
+corrente de almas, e os especiais de estado (investida, tornado, relâmpago, forma de lobo/urso, laser, morcegos).
+
+**Dano em chefe também carrega:** cada 2 de dano causado num chefe vale 1 abate (um golpe carrega no máximo 2,
+para um especial forte não se recarregar sozinho). Golpes bloqueados (frente do Colosso, vidro do Reflexo,
+escudos do Coração) não contam; queimadura e veneno contam. Ajuste em `DANO_POR_CARGA` e `CARGA_MAX_GOLPE` (`src/entities.js`).
+
 X, C e V **não têm recarga por tempo**. Cada um tem um contador de abates desde a última vez que foi usado:
 
 | Tecla | Abates para liberar |
@@ -309,12 +381,106 @@ o X, e assim por diante).
 Só o **F** tem recarga (60 s). Cada inimigo morto ainda **adianta 0,5 s** dessa recarga. As barras do HUD
 piscam em branco no momento do abate.
 
+## A história
+
+Há muito tempo, Aurum era um só mundo, sustentado pelo **Coração do Mundo**. No dia do **Colapso** o Coração
+rachou e o mundo se partiu em mil universos. Das rachaduras nasceram as **fendas**; elas se fundiram umas nas
+outras e abriram **portais** por toda a terra. Pelos portais vieram criaturas estranhas, de mundos que nunca
+deviam se tocar, e elas caçam o que restou dos humanos. Os pedaços do Coração se espalharam: **seis fragmentos**,
+cada um nas garras de um **guardião das fendas**. Você é um dos últimos heróis: atravesse os portais, derrote os
+monstros e **resgate os fragmentos do mundo**.
+
+### Abertura
+
+Todo jogo novo (solo ou cooperativo) começa com uma **abertura em cenas**, como um vídeo: o mundo inteiro
+girando, o Coração batendo, o Colapso (tela treme, clarão, o cristal racha), o planeta se partindo em pedaços,
+portais se abrindo sobre os morros, olhos vermelhos saindo de um portal enquanto as luzes da vila se apagam, os
+seis fragmentos sendo levados, e o seu herói no alto de uma colina ao pôr do sol. As legendas são digitadas letra
+a letra e tocam sobre uma **trilha própria** (`historia`: lenta, em Lá menor, com acordes longos Am–F–C–G / Am–F–G–E).
+**ENTER pula a história**; **J** avança uma cena. Ao atravessar o último portal, um final no mesmo estilo mostra
+os fragmentos se juntando, o planeta se refazendo e as luzes da vila voltando.
+
+## A campanha: três mundos de 12 salas
+
+Cada mundo tem **12 salas diferentes** em sequência (grid 4×3, percorrido em serpente), sempre com a mesma lógica:
+
+| Sala | Papel |
+|---|---|
+| 1 | Início, com uma pedra de lore (dica do primeiro guardião) |
+| 2, 4, 5 | Inimigos |
+| 3 | Tesouro: baú com recipiente de coração |
+| 6 | **Guardião 1** |
+| 7 | Descanso: **fonte** que enche a vida, salva e vira ponto de retorno se você cair; pedra com dica do guardião 2 |
+| 8, 9, 10 | Inimigos |
+| 11 | **Guardião 2** |
+| 12 | **Puzzle**: resolvido, abre o **portal** para o próximo mundo |
+
+Só **6 das 12 salas** têm inimigos. Os dois guardiões têm **muita vida**, e **todo golpe deles tira 1 coração e
+meio** (contato, tiros, ondas, raios). O F e a bola de fogo tiram só **1/6** da vida deles (nos chefes antigos, 1/3).
+Cada guardião solta um **fragmento**; a cada 2 fragmentos o dano das armas sobe um nível (poder ×2, ×3, ×4).
+Salas de guardião se fecham até ele cair.
+
+| Mundo | Cenário | Inimigos | Puzzle |
+|---|---|---|---|
+| **1 - Aurum Fraturado** | campo | goblins, slimes, morcegos, machadeiros, arqueiros, aranhas, caçadores, bombardeiros | **Runas de luz**: 3×3 runas; pisar numa inverte ela e as vizinhas; acenda todas |
+| **2 - Pântano das Fendas** | pântano | sapos, mosquitos, slimes, bruxas, aranhas, xamãs, fantasmas | **Canção do totem**: o totem acende uma sequência de cores; pise nas pedras na mesma ordem (3, 4 e 5 notas) |
+| **3 - Cidadela do Vazio** | castelo | lanceiros, besteiros, gárgulas, esqueletos, feiticeiros, cavaleiros, golens | **Runas do mural**: 5 runas com 4 símbolos; pisar gira a runa e as duas do lado; iguale o mural |
+
+Nos puzzles de runas há uma **pedra vermelha**. A pedra vermelha só existe no **Fácil**: pisar nela recomeça
+o puzzle e mostra a **dica** (as runas da solução, calculada a partir do estado atual, piscam com moldura azul;
+no mundo 3 o número em cima diz quantas vezes pisar). No Médio e no Difícil não há pedra nem dica.
+
+### Dificuldade
+
+Depois de escolher o herói aparece a tela de **dificuldade** (setas escolhem, Enter começa). Dá para trocar a
+qualquer hora no menu (Esc), aba **MAPA**, com cima/baixo; a escolha fica salva. Vale para monstros que nascem
+depois da troca.
+
+| | Vida dos inimigos | Vida dos chefes | Ritmo dos chefes | Tiros, raios, escudos e invocações | Dano que você leva | Golpe de chefe |
+|---|---|---|---|---|---|---|
+| **Fácil** | −30% | metade | 75% (tudo mais lento) | 60% | metade (mínimo 1) | 1 coração |
+| **Médio** | normal | normal | normal | normal | normal | 1 coração e meio |
+| **Difícil** | +40% | +50% | 120% | 135% | +50% | 2 corações e meio |
+
+O ritmo vale para tudo que o chefe faz (andar, recarregar, preparar golpes); na batalha do Eco, para a
+velocidade e a quantidade das balas. Os valores ficam em `DIFICULDADES` (`src/game.js`).
+
+### Teleporte (T)
+
+Abre o mapa do mundo atual: setas escolhem, Enter ou J teleporta, T ou Esc fecha. Só dá para ir a salas onde
+você já esteve (ficam salvas no save), e não funciona com a sala do chefe fechada, no VS ou no competitivo.
+Salas de inimigos já limpas continuam limpas.
+
+No VS a dificuldade não muda nada. Ao cair e voltar (na fonte ou no começo do mundo), o herói volta com a **vida cheia**.
+
+### Os seis guardiões
+
+| Mundo | Guardião | Vida | Mecânica |
+|---|---|---|---|
+| 1 | **Devorador de Fendas** | 150 | Abre 4 fendas na arena (6 abaixo da metade). Mergulha numa, some (intocável), uma outra brilha e ele sai dela num bote; depois fica **tonto** e leva 1,5× o dano. Também vomita sombras por todas as fendas e **rasga o espaço** em linhas que piscam e cortam a sala inteira. |
+| 1 | **Colosso de Aurum** | 170 | Pedra pura pela frente: golpes de frente **não fazem nada**. Só o **núcleo nas costas** sente dor (2× o dano). Ele gira devagar para te encarar. Soco que solta onda de choque (role por cima), pedras em leque e **investida**: se bater na parede fica **atordoado** (2× de qualquer lado) e caem raios do teto. |
+| 2 | **Mariposa do Abismo** | 230 | A arena fica **no escuro**: só a luz em volta do herói e dos **4 lampiões**. Encoste num lampião para acender. Ela odeia a luz mas não resiste: voa até um lampião aceso, **se queima**, cai e leva 2× o dano. O pó das asas apaga os lampiões por perto e solta espirais; também dá rasantes e chama mosquitos. Os olhos vermelhos aparecem no escuro. |
+| 2 | **Eco das Fendas** | 500 | **Luta no estilo Undertale** (veja abaixo). |
+| 3 | **O Reflexo** | 300 | Uma cópia sombria do seu herói que **repete cada passo, espelhada**. Golpes só acertam o vidro. A arena tem lava só do lado dele: posicione-se para que o espelho dele caia na **lava** (30 de dano por queimadura). Abaixo da metade o espelho **vira de cabeça para baixo** (copia invertido nos dois eixos). De tempos em tempos o vidro racha e ele te caça sozinho. |
+| 3 | **Coração do Colapso** | 520 | O coração do mundo, podre, parado no centro. **Fase 1**: 4 escudos de cristal giram em volta e protegem o núcleo; quebre todos para expô-lo por 6 s. **Fase 2**: **gravidade** puxa todos para o centro (rolar escapa) enquanto espirais, anéis e ecos dos outros chefes (raios, ondas) caem. **Fase 3**: **o mundo encolhe**: as bordas da arena viram vazio, em dois anéis. |
+
+### Batalha estilo Undertale (Eco das Fendas)
+
+Ao chegar perto do Eco a tela muda: fundo preto, o Eco no alto, uma caixa branca e os botões **LUTAR / AGIR /
+ITEM / POUPAR** (setas escolhem, J ou Enter confirma, K ou Esc volta).
+
+- **LUTAR**: um cursor corre a barra; aperte J perto do meio. Quanto mais no centro, mais dano (acerto perfeito = crítico).
+- **AGIR**: ANALISAR, OUVIR, LEMBRAR, CANTAR e PROVOCAR. A ordem importa: **ouvir** revela os nomes, **lembrar**
+  só funciona depois de ouvir, **cantar** só depois de lembrar. Isso enche a misericórdia; provocar deixa os ataques mais rápidos.
+- **ITEM**: Pão de Aurum (+4, ×2) e Chá de Lírio (+8, ×1).
+- **POUPAR**: com a misericórdia cheia (o nome fica amarelo), o Eco encontra paz e deixa o fragmento **e um coração extra**.
+- **Turno do Eco**: a caixa encolhe e você controla a **alma** (coração vermelho) desviando das balas: chuva de
+  lágrimas, fendas com uma brecha, anéis que se fecham, espiral e a **alma azul** (gravidade; seta para cima pula).
+  Cada acerto tira 1 coração e meio da vida real do herói.
+
 ## O jogo
 
-- **Mundo aberto** de 6×5 salas de 26×12 blocos, no formato tela-por-tela do Zelda 1 (a câmera desliza ao trocar de sala).
-- **Dois mundos extras**, com entrada por portais no Reino (veja abaixo): o **Pântano Sombrio** e o **Castelo Sombrio**.
-- **Duas masmorras** geradas proceduralmente (16 salas cada, árvore geradora + atalhos):
-  chave escondida num baú, porta trancada, recipiente de coração num baú secundário e sala do chefe selada.
+- Salas de 26×12 blocos, no formato tela-por-tela do Zelda 1 (a câmera desliza ao trocar de sala).
 - **Inimigos**: goblin (perseguidor), goblin arqueiro, morcego, slime (divide ao morrer),
   esqueleto (investida em linha), cavaleiro (blindado, dano máximo 1 por golpe) e fantasma (atravessa paredes), mais:
 
@@ -326,79 +492,29 @@ piscam em branco no momento do abate.
   | **Goblin bombardeiro** | 3 | Joga bombas em arco onde você está; a área pisca e explode depois de 0,7 s (1 coração) |
   | **Aranha** | 2 | Rápida, anda em zigue-zague e dá botes |
   | **Golem de pedra** | 14 | Lento e grande, não é empurrado, pisa no chão soltando uma onda (role por cima para escapar) |
+  | **Sapo** | 3 | Pula até perto e dá uma linguada de 40 px |
+  | **Mosquito gigante** | 2 | Voa em zigue-zague e dá picadas rápidas |
+  | **Bruxa do pântano** | 5 | Joga frascos de veneno que viram uma poça (1 de dano a cada 0,5 s em quem pisa) e chama mosquitos |
+  | **Lanceiro** | 6 | Alinha com você e dá uma estocada longa com a lança (1 coração) |
+  | **Besteiro** | 5 | Mira em qualquer ângulo; virote rápido de 1 coração |
+  | **Feiticeiro** | 6 | Anel de 6 orbes sombrios ou levanta esqueletos |
+  | **Gárgula** | 7 | Parece uma estátua e não leva dano; quando você chega perto ela acorda, voa e mergulha |
 
-  Quanto mais longe do início, mais inimigos por sala e mais variados; as masmorras têm 1 inimigo a mais por sala.
-- **Chefes das masmorras** (dão os fragmentos): Rei Goblin (investida, tremor de terra com pedras radiais,
-  invoca goblins abaixo de 50% de vida) e Lich das Sombras (teletransporte, leque de bolas de fogo, anel de orbes,
-  invoca lacaios). Ficam atrás da porta trancada; a chave está num baú da própria masmorra.
-- **Chefes do mundo aberto**, nos cantos do mapa (a arena fecha até ele cair; dão recipiente de coração e 4 joias):
+  Quanto mais adiante no mundo, mais inimigos por sala e mais variados.
+- **Moedas**: cada monstro comum **explode em 5 moedas de 3** (15 no total), que voam em arco e caem no chão;
+  quem chegar perto pega (elas são atraídas de 2,5 blocos). Somem depois de 10 s. Às vezes cai um coração.
+  Ajuste em `MOEDAS_POR_MOB` e `MOEDAS_PECAS` (`src/game.js`).
+- **Morrer para um chefe**: ao voltar (na fonte ou no começo do mundo) **todos os monstros do mundo renascem**;
+  chefes já derrotados e baús abertos continuam como estavam. Morrer numa sala comum não reseta nada.
+- **Progressão**: moedas, corações, recipientes de coração, 6 fragmentos (poder das armas sobe a cada 2),
+  e a habilidade especial como carta na manga a cada 60 s. O portal do terceiro mundo leva ao final.
+- **Extras**: arbustos cortáveis com drop, baús, pedras de lore, fonte de descanso com ponto de retorno,
+  save automático em `localStorage`, minimapa na pausa (guardiões em vermelho, portal em roxo), controles de toque no celular.
 
-  | Chefe | Onde | Vida | Ataques |
-  |---|---|---|---|
-  | **Grok, o Machadeiro** | sudoeste (X1 Y5), perto do início | 34 | Giro com o machado atrás de você, leque de machados, grito que chama machadeiros |
-  | **Troll da Floresta** | noroeste (X1 Y1) | 50 | Salta em cima de você e cai soltando uma onda, arremessa pedras (1 coração cada), tremor que espalha uma onda grande |
-  | **Arquimago Sombrio** | sudeste (X6 Y5) | 46 | Some e reaparece, rajada e anel de fogo, raios marcados no chão (saia do círculo), invoca xamãs |
-
-  Abaixo de 50% de vida todos ficam furiosos (mais rápidos, mais projéteis). No mapa da pausa as cavernas aparecem
-  em amarelo e os chefes vivos em vermelho, mesmo antes de visitar.
-- **Progressão**: moedas, corações, chaves, recipientes de coração, arma de ouro (dano dobrado)
-  ao pegar o primeiro fragmento, e a habilidade especial como carta na manga a cada 60 s.
-  Dois fragmentos = final.
-- **Extras**: arbustos cortáveis com drop, baús, salas que exigem limpar os inimigos, save automático
-  em `localStorage`, minimapa na pausa, controles de toque no celular.
-
-## Os mundos
-
-O Reino de Aurum (mundo aberto 6×5) liga tudo. No mapa da pausa as entradas aparecem sempre, mesmo antes de visitar:
-cavernas em amarelo, o portal do pântano em verde, o do castelo em roxo e os chefes vivos em vermelho.
-
-| Mundo | Entrada | Formato | Música | Chefes |
-|---|---|---|---|---|
-| **Reino de Aurum** | início | 6×5 salas, campo | campo | Grok, Troll da Floresta, Arquimago Sombrio |
-| **Caverna dos Goblins** | caverna a oeste (X1 Y3) | masmorra 4×4 | masmorra | Rei Goblin (fragmento) |
-| **Cripta das Sombras** | caverna a nordeste (X6 Y1) | masmorra 4×4 | masmorra | Lich das Sombras (fragmento) |
-| **Pântano Sombrio** | portal verde a leste (X6 Y3) | 4×4 salas, campo | própria, lenta e arrastada | Rei Sapo, Hidra do Pântano |
-| **Castelo Sombrio** | portal roxo ao norte (X3 Y1) | masmorra 4×4 | própria, marcha solene | Cavaleiro Negro (no meio), Rei Sombrio (sala do trono, trancada) |
-
-Para voltar ao Reino, pise no portal (ou na escada) da sala de entrada de cada mundo. Morrer num mundo te devolve
-ao começo dele. Salas de chefe fecham as portas assim que você entra (depois de sair de cima da porta) e só
-abrem quando ele cai.
-
-### Pântano Sombrio
-
-Chão de charco com juncos e cogumelos, trilhas de lama, poças de água turva (algumas com vitórias-régias),
-árvores secas e retorcidas e uma névoa verde por cima de tudo.
-
-| Inimigo | Vida | Como luta |
-|---|---|---|
-| **Sapo** | 3 | Pula até perto e dá uma linguada de 40 px |
-| **Mosquito gigante** | 2 | Voa em zigue-zague e dá picadas rápidas |
-| **Bruxa do pântano** | 5 | Joga frascos de veneno que viram uma poça (1 de dano a cada 0,5 s em quem pisa) e chama mosquitos |
-
-| Chefe | Vida | Ataques |
-|---|---|---|
-| **Rei Sapo** (X1 Y1) | 42 | Salta em cima de você e cai soltando uma onda, linguada de 96 px, cuspe de veneno em leque, coaxa chamando sapos |
-| **Hidra do Pântano** (X4 Y1) | 64 | Três cabeças cospem veneno em sequência; mergulha (fica intocável) e reaparece em outro ponto com uma onda |
-
-### Castelo Sombrio
-
-Piso de pedra roxa com lajes vermelhas, paredes de tijolo com estandartes, pilares, fossos de lava e a sala do
-trono com tapete vermelho. O Cavaleiro Negro guarda uma sala no meio do caminho; o Rei Sombrio fica atrás da
-porta trancada (a chave está num baú do castelo).
-
-| Inimigo | Vida | Como luta |
-|---|---|---|
-| **Lanceiro** | 6 | Alinha com você e dá uma estocada longa com a lança (1 coração) |
-| **Besteiro** | 5 | Mira em qualquer ângulo; virote rápido de 1 coração |
-| **Feiticeiro** | 6 | Anel de 6 orbes sombrios ou levanta esqueletos |
-| **Gárgula** | 7 | Parece uma estátua e não leva dano; quando você chega perto ela acorda, voa e mergulha |
-
-| Chefe | Vida | Ataques |
-|---|---|---|
-| **Cavaleiro Negro** | 48 | Armadura (no máximo 3 de dano por golpe), investidas em combo, giro com a espada, ondas sombrias |
-| **Rei Sombrio** | 90 | Foices giratórias, pilares de raio marcados no chão, anel de sombras, some e reaparece do seu lado, chama lanceiros e besteiros |
-
-Todos os chefes novos dão recipiente de coração e joias; os fragmentos continuam vindo do Rei Goblin e do Lich.
+O Reino de Aurum, as masmorras, o Pântano Sombrio e o Castelo Sombrio da versão anterior (com Grok, Troll,
+Arquimago, Rei Goblin, Lich, Rei Sapo, Hidra, Cavaleiro Negro e Rei Sombrio) continuam no código (`genOverworld`,
+`genDungeon`, `genPantano` em `src/world.js`), mas não fazem parte da campanha; os cenários deles viraram as
+arenas do VS e a base visual dos três mundos.
 
 ### Arte dos cenários
 
@@ -408,7 +524,7 @@ sombra. Cada tile estático tem **3 variações** escolhidas pela posição na s
 ## Arquitetura
 
 ```
-index.html      carrega os 6 scripts na ordem e chama AURUM.boot()
+index.html      carrega os 10 scripts na ordem e chama AURUM.boot()
 servidor.js     (Node) serve os arquivos e repassa as mensagens do multijogador via WebSocket (rede local)
 style.css       layout, escala pixelada, botões de toque
 src/core.js     matemática, input (teclado/gamepad/toque), áudio sintetizado,
@@ -418,6 +534,10 @@ src/net.js      cliente de rede: WebSocket (servidor.js) ou WebRTC com código d
 src/art.js      geração de todos os tiles e sprites em canvases offscreen
 src/world.js    tiles, colisão, geração do mundo aberto e das masmorras, cache de sala
 src/entities.js jogador, inimigos, chefes, projéteis, itens e baús
+src/mundos.js   campanha: os 3 mundos de 12 salas, pedras de lore, fonte, lampiões e puzzles
+src/chefes.js   os 6 guardiões das fendas
+src/batalha.js  batalha estilo Undertale (Eco das Fendas)
+src/historia.js abertura e final em cenas, com legenda digitada
 src/game.js     máquina de estados, transições, HUD, save, loop principal, modos multijogador
 ```
 
@@ -455,7 +575,12 @@ src/game.js     máquina de estados, transições, HUD, save, loop principal, mo
 - Golpe: `ATK_WIND`/`ATK_SWING`/`ATK_REC` (duração de cada fase), `SWING_FROM`/`SWING_TO` (abertura do arco, em radianos), `BLADE_HITS` (alcance das caixas) e `HAND_OUT` (quanto a base do cabo se afasta do corpo; de frente e de costas ela fica centrada no personagem) em `src/entities.js`. Número de sprites de lâmina: `BLADE_STEPS` em `src/art.js`.
 - Recarga da bola de fogo: `FIRE_CD` em `src/entities.js` (em frames, 60 = 1 s). Dano nos chefes: `novaBlast()` em `src/game.js`.
 - Aparência do guerreiro: paleta `KN` e função `drawKnight` em `src/art.js`.
-- Trilha sonora: arrays `lead`/`bass` de `Music.tracks` em `src/core.js` (notas MIDI, `-1` = pausa).
+- Trilha sonora: arrays `lead`/`bass` de `Music.tracks` em `src/core.js` (notas MIDI, `-1` = pausa); `wave`, `vol`, `sus` e `pad` (acordes) opcionais, usados pela trilha `historia`.
+- Campanha: `SALAS` (12 layouts em texto), `PAPEL` (o que cada sala é), `MUNDOS` (paleta, inimigos, guardiões, puzzle e textos das pedras) em `src/mundos.js`.
+- Guardiões: vida no `super(...)` de cada classe e `DANO` (3 = 1 coração e meio) em `src/chefes.js`; `fracF` controla quanto o F tira.
+- Batalha do Eco: `DANO`, `TURNO`, `ORDEM` (padrões por turno), `PADROES`, falas e itens em `src/batalha.js`.
+- Fonte: pixel 5×7 proporcional desenhada por código (`GLIFOS` em `src/core.js`, `G.textoPixel`), sempre em escala inteira (1×, 2× ou 3×) para ficar nítida; `text()` em `src/game.js` converte o tamanho antigo em escala.
+- Abertura: `CENAS_INTRO`/`CENAS_FIM` (texto, duração, sons e desenho de cada cena) em `src/historia.js`.
 
 ## Testado
 

@@ -935,6 +935,105 @@
     return set;
   }
 
+  // foice do necromante: cabo longo e lamina curva na ponta (canvas 72, alcance 1,3x)
+  function buildFoices() {
+    const set = rotSet(72, (put) => {
+      const cabo = '#3a2a1a', caboL = '#5c3a1a', lamina = '#c8cede', fio = '#eef2ff', joia = '#7fd858';
+      for (let d = 0; d <= 26; d++) put(d, 0, 2, d % 6 === 0 ? caboL : cabo);
+      put(26, 0, 3, joia);
+      for (let k = 0; k <= 11; k++) {
+        const d = 27 - k * k * 0.07, o = -1 - k;
+        put(d, o, 2, lamina);
+        put(d + 1, o, 1, fio);
+      }
+    });
+    set.pivot = 36;
+    return set;
+  }
+
+  // garras do druida em forma de fera: tres riscos curtos
+  function buildGarras() {
+    return rotSet(BLADE_CANVAS, (put) => {
+      for (const o of [-3, 0, 3]) {
+        for (let d = 7; d <= 15; d++) put(d, o + (d - 7) * 0.35, 1, d > 12 ? '#ffffff' : '#eef2ff');
+      }
+    });
+  }
+
+  // rapieira da vampira: guarda dourada e lamina fina
+  function buildRapieiras() {
+    return rotSet(BLADE_CANVAS, (put) => {
+      put(0, 0, 2, '#c79a1f');
+      for (let d = 1; d <= 3; d++) put(d, 0, 2, '#1c1824');
+      for (let o = -3; o <= 3; o++) put(4, o, 1, o === -3 || o === 3 ? '#e33b4e' : '#ffd34d');
+      for (let d = 5; d <= 22; d++) put(d, 0, 1.5, '#eef2ff');
+      put(23, 0, 1, '#ffffff');
+    });
+  }
+
+  // projeteis novos: relogio do cronomante, espinho do druida e prego do engenheiro
+  function relogioFrames() {
+    return [0, 1].map((f) => {
+      const c = mk(10, 10), x = c.getContext('2d');
+      disc(x, 5, 5, 4, '#e0a526');
+      disc(x, 5, 5, 3, '#1f4f55');
+      px(x, 4, 4, 2, 2, '#5ce1ff');
+      if (f) px(x, 5, 2, 1, 3, '#ffffff'); else px(x, 5, 5, 3, 1, '#ffffff');
+      return c;
+    });
+  }
+  function espinhoFrames() {
+    return [0, 1].map((f) => {
+      const c = mk(8, 8), x = c.getContext('2d');
+      if (f) { for (let k = 0; k < 8; k++) { px(x, k, k, 1, 1, '#3f8a2a'); px(x, 7 - k, k, 1, 1, '#3f8a2a'); } }
+      else { px(x, 3, 0, 2, 8, '#3f8a2a'); px(x, 0, 3, 8, 2, '#3f8a2a'); }
+      px(x, 3, 3, 2, 2, '#7fd858');
+      return c;
+    });
+  }
+  function pregoFrames() {
+    const c = mk(4, 4), x = c.getContext('2d');
+    px(x, 1, 1, 3, 2, '#c8cede'); px(x, 0, 0, 1, 4, '#8f96a8');
+    return [c];
+  }
+
+  // druida transformado: lobo cinza ou urso marrom, de perfil (espelhado para a esquerda)
+  function drawFera(x, f, urso, atk) {
+    const P = (a, b, w, h, c) => px(x, a, b, w, h, c);
+    const s = f === 1 ? 1 : 0;
+    P(2, 15, 12, 1, 'rgba(0,0,0,0.22)');
+    if (urso) {
+      const pelo = '#6b4a2a', esc = '#4a3018', claro = '#a2763f';
+      P(2 + s, 12, 3, 3, esc); P(8 - s, 12, 3, 3, esc);
+      P(1, 5, 11, 8, pelo); P(1, 5, 11, 1, esc); P(3, 11, 7, 2, claro);
+      P(10, 3, 5, 6, pelo); P(14, 6, 2, 3, claro); P(15, 6, 1, 1, DARK);
+      P(10, 2, 2, 2, esc); P(13, 2, 2, 2, esc); P(12, 4, 1, 1, DARK);
+      if (atk) { P(12, 8, 4, 3, esc); P(15, 8, 1, 1, '#ffffff'); P(15, 10, 1, 1, '#ffffff'); }
+    } else {
+      const pelo = '#8f96a8', esc = '#5c667e', claro = '#c8cede';
+      P(0, 6, 3, 2, pelo); P(0, 5, 1, 1, claro);
+      P(3 - s, 11, 2, 4, esc); P(9 + s, 11, 2, 4, esc);
+      P(2, 7, 9, 5, pelo); P(3, 11, 7, 1, claro); P(2, 7, 9, 1, esc);
+      P(10, 4, 4, 5, pelo); P(13, 6, 3, 2, pelo); P(15, 6, 1, 1, DARK);
+      P(10, 2, 2, 2, esc); P(12, 3, 1, 1, esc); P(12, 5, 1, 1, '#ffd34d');
+      if (atk) { P(13, 8, 3, 1, '#e84c3d'); P(14, 7, 1, 1, '#ffffff'); }
+    }
+  }
+  function feraSet(urso, atk) {
+    const set = {};
+    for (const dir in POSES) {
+      const mirror = dir.indexOf('left') >= 0;
+      set[dir] = [0, 1].map((f) => {
+        const c = mk(16, 16), x = c.getContext('2d');
+        if (mirror) { x.translate(16, 0); x.scale(-1, 1); }
+        if (atk) x.translate(f ? 1 : -1, 0);
+        drawFera(x, atk ? 0 : f, urso, atk && f === 1);
+        return c;
+      });
+    }
+    return set;
+  }
+
   // estrela ninja: 4 pontas, girando
   function estrelaFrames() {
     return [0, 1].map((f) => {
@@ -1471,6 +1570,38 @@
       trim: '#ffd34d', boot: '#2a2418'
     };
     const bomberOpt = { cap: '#5c3a1a', scarf: true };
+
+    // cronomante: manto verde-azulado com dourado, chapeu de aba larga, cabelo branco
+    const cronoPal = {
+      skin: '#e3b184', hair: '#e6e4d8', body: '#1f6b73', bodyD: '#164f55',
+      trim: '#e0a526', boot: '#2a2436'
+    };
+    const cronoOpt = { hat: '#1f4f55', hatD: '#e0a526', scarf: true };
+    // necromante: capuz e manto pretos, pele palida, detalhe verde
+    const necroPal = {
+      skin: '#c8d0c0', hair: '#1c1824', body: '#2a2436', bodyD: '#1c1824',
+      trim: '#7fd858', boot: '#1c1824'
+    };
+    const necroOpt = { cap: '#2a2436', mouth: '#1c1824' };
+    // engenheiro: capacete amarelo, macacao azul e cinto de ferramentas
+    const engPal = {
+      skin: '#d9a066', hair: '#6b4a2a', body: '#2f6fb8', bodyD: '#23538a',
+      trim: '#8a5a2b', boot: '#3a2a1a'
+    };
+    const engOpt = { cap: '#ffd34d' };
+    // druida: capuz e manto verdes, cinto dourado
+    const druidaPal = {
+      skin: '#e3b184', hair: '#8a5a2b', body: '#3f7a3a', bodyD: '#2f5a2a',
+      trim: '#c79a1f', boot: '#3a2a1a'
+    };
+    const druidaOpt = { cap: '#2f5a2a', scarf: true };
+    // vampira: pele palida, cabelo preto, vestido vinho, boca vermelha
+    const vampPal = {
+      skin: '#eee0e0', hair: '#1c1824', body: '#6b1720', bodyD: '#4a0f16',
+      trim: '#1c1824', boot: '#1c1824'
+    };
+    const vampOpt = { scarf: true, mouth: '#e84c3d' };
+    const heroi = (p, o) => ({ walk: charSet(p, o), atk: charSet(p, o, 'atk') });
     const goblin = charSet(
       { skin: '#6fae3f', hair: '#2f4a1c', body: '#8a5a2b', bodyD: '#6b4a2a', trim: '#4a3018', boot: '#3c2a17' },
       { ears: true, mouth: '#2a1010' }
@@ -1554,8 +1685,19 @@
         mago: { walk: charSet(magePal, mageOpt), atk: charSet(magePal, mageOpt, 'atk') },
         ninja: { walk: charSet(ninjaPal, ninjaOpt), atk: charSet(ninjaPal, ninjaOpt, 'atk') },
         percy: { walk: charSet(percyPal, percyOpt), atk: charSet(percyPal, percyOpt, 'atk') },
-        bomber: { walk: charSet(bomberPal, bomberOpt), atk: charSet(bomberPal, bomberOpt, 'atk') }
+        bomber: { walk: charSet(bomberPal, bomberOpt), atk: charSet(bomberPal, bomberOpt, 'atk') },
+        crono: heroi(cronoPal, cronoOpt),
+        necro: heroi(necroPal, necroOpt),
+        engenheiro: heroi(engPal, engOpt),
+        druida: heroi(druidaPal, druidaOpt),
+        vampira: heroi(vampPal, vampOpt)
       },
+      feras: {
+        lobo: { walk: feraSet(false, false), atk: feraSet(false, true) },
+        urso: { walk: feraSet(true, false), atk: feraSet(true, true) }
+      },
+      foiceArma: buildFoices(), garra: buildGarras(), rapieira: buildRapieiras(),
+      relogio: relogioFrames(), espinho: espinhoFrames(), prego: pregoFrames(),
       katana: buildKatanas(), estrela: estrelaFrames(), tridente: buildTridentes(),
       blade: buildBlades(), bladeSteps: BLADE_STEPS, bladePivot: BLADE_PIVOT,
       bow: buildBows(), staff: buildStaves(), shaft: buildArrows(), goldShaft: buildGoldArrows(),

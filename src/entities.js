@@ -34,6 +34,20 @@
     if (dono) e.ultimoDono = dono;
     if (e instanceof Player) e.levaGolpe(g, dmg, dx, dy);
     else e.hurt(g, dmg, dx, dy);
+    // corrente de almas (C do necromante): o mesmo dano chega em todos os ligados
+    const elo = g.elo;
+    if (elo && !elo.dead && !elo.prop && elo.alvos.has(e)) {
+      elo.prop = true;
+      const f0 = g.fonteDano;
+      g.fonteDano = elo.fonte || f0;
+      for (const o of elo.alvos) {
+        if (o === e || o.dead) continue;
+        G.ferir(g, o, dmg, 0, 0, elo.dono);
+        g.particles.burst(o.cx, o.cy, 4, 8, 1, 10);
+      }
+      g.fonteDano = f0;
+      elo.prop = false;
+    }
   };
   // variante que ignora armadura e fases intangiveis (onda de choque, bola de fogo)
   G.ferirBruto = function (g, e, dmg, dx, dy, dono) {
@@ -53,6 +67,7 @@
       e.fogo = tab ? tab.fogo : FOGO_T;
       e.fogoT = FOGO_TICK;
       e.fogoDono = dono;
+      e.fogoFonte = g.fonteDano || null;           // qual especial acendeu (nao recarrega ele mesmo)
       e.gelo = 0;                                  // e o fogo derrete o gelo
       g.particles.burst(e.cx, e.cy, 10, 9, 1.4, 18);
     } else if (elem.id === 'raio') {
@@ -86,12 +101,19 @@
   // VS: o dano causado no oponente libera X, C e V de quem bateu (1 ponto de vida = 1 abate)
   G.danoNoOponente = function (g, alvo, autor, n) {
     if (!autor || autor === alvo || !(autor instanceof Player) || n <= 0 || g.modo() !== 'vs') return;
-    if (autor.carrega(n) && autor === g.player) g.cdPulse = 10;
+    if (autor.carrega(n, g.fonteDano) && autor === g.player) g.cdPulse = 10;
   };
 
   // no VS todo F causa no oponente 2x o dano de uma espada comum (meios-coracoes)
   const PVP_F = 2;
   G.PVP_F = PVP_F;
+
+  // golpe final dos F: monstro morre, chefe leva 1/3 da vida, oponente no VS leva PVP_F
+  // (os chefes da campanha dos fragmentos resistem mais: fracF = 6 leva so 1/6)
+  function golpeFatal(g, e, dono) {
+    const dmg = e instanceof Player ? PVP_F : e.boss ? Math.max(1, Math.ceil(e.maxhp / (e.fracF || 3))) : 999;
+    G.ferirBruto(g, e, dmg, 0, -1, dono);
+  }
 
   // paralisa `e` por `t` quadros (monstro, chefe ou jogador)
   G.paralisa = function (e, t) {
@@ -167,6 +189,8 @@
   const KILL_REFUND = 30;                      // cada inimigo morto adianta 0,5 s da recarga do F
   // X, C e V nao tem recarga: liberam por abates desde o ultimo uso (no VS, por dano causado no oponente)
   const ABATES_X = 3, ABATES_C = 6, ABATES_V = 10;
+  const DANO_POR_CARGA = 2;                    // dano no chefe: cada 2 de dano vale 1 abate para o X, C e V
+  const CARGA_MAX_GOLPE = 2;                   // ... e um golpe so carrega ate 2 (um especial forte nao se recarrega sozinho)
   const SP_RANGE_FULL = 480;                   // as flechas da salva sempre atravessam a sala inteira
   const SP_RAJADAS = 4, SP_RAJADA_T = 10;      // segurando ate a carga cheia: 4 salvas seguidas, a cada 10 quadros
   const SP_SHRINK_FULL = 140;                  // distancia em que a flecha termina de encolher
@@ -190,6 +214,7 @@
   const EMPURRA_TOTAL_VEL = 6;                 // flecha carregada: arrasta ate a parede ou a borda, a 6 px/quadro
   const COLADO_FRENTE = 28, COLADO_VOLTA = 16;  // ao atirar, afasta quem esta a frente (28 px) ou colado em qualquer lado (16 px)
   const MAGIA_SOLTA = 6;                       // mago: a magia sai no meio da varredura do cajado
+  const MAGIA_CD = 60;                         // mago: 1 s entre um ataque do Z e outro
   // ordem ponderada dos elementos: 7 de fogo, 4 de gelo, 2 de raio, e recomeca
   const CICLO_ELEM = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2];
 
@@ -206,7 +231,7 @@
   const RAIO_ALCANCE = 48;                     // raio pula para inimigos a ate 3 blocos
   const RAIO_SALTOS = 4;                       // quantos inimigos extras o raio alcanca
   // chefes e jogadores (VS) sofrem menos
-  const EFEITO_CHEFE = { gelo: 180, fogo: FOGO_T, raio: 60 };
+  const EFEITO_CHEFE = { gelo: 60, fogo: FOGO_T, raio: 60 };   // chefe congela so 1 s
   const EFEITO_JOGADOR = { gelo: 90, fogo: 180, raio: 60 };
 
   // guerreiro: especiais com a espada
@@ -215,13 +240,13 @@
   const KN_DASH_LONG = 400;                    // segurando: atravessa a sala ate a parede ou a borda
   const KN_DASH_MULT = 3;                      // carga cheia: 3x o dano da espada
   const KN_GIRO_VOLTA = 16;                    // quadros por volta de 360 graus
-  const KN_GIRO_T = 420;                       // giro (C): 7 s girando e correndo atras dos inimigos
+  const KN_GIRO_T = 180;                       // giro (C): 3 s girando e correndo atras dos inimigos
   const KN_GIRO_MULT = 2;                      // 2x o dano da espada, a cada volta
   const KN_RUSH_SPD = 7;                       // px por quadro, ignorando paredes
   const KN_RUSH_PAUSA = 6;                     // quadros parado em cada golpe
   const KN_RUSH_MULT = 4;                      // 4x o dano da espada em cada inimigo
   const KN_RUSH_MAX = 900;                     // limite de seguranca: 15 s
-  const KN_INVULNERAVEL = 180;                 // investida (X) e relampago (V): 3 s invulneravel, piscando
+  const KN_INVULNERAVEL = 180;                 // relampago (V): 3 s invulneravel, piscando
   const KN_RUSH_PARA = 300;                    // relampago (V): quem e atingido fica paralisado 5 s
 
   // ninja
@@ -250,9 +275,41 @@
   const BM_MINA_ARMA = 30, BM_MINA_RAIO = 28, BM_MINA_MULT = 4;
   const BM_ESCUDO_T = 420, BM_ESCUDO_N = 6;    // C: 6 bombas girando por 7 s
   const BM_ESCUDO_R = 20, BM_ESCUDO_MULT = 3;
-  const BM_GRUDA_VOO = 20, BM_GRUDA_MOVE = 2;  // V: gruda no alvo e explode se ele andar 2 px
-  const BM_GRUDA_PVP = 4;                      // V no VS: 4x o dano, sem matar na hora
+  const BM_QUICA_VOO = 18;                     // V: quadros de cada pulo da bomba entre um alvo e outro
+  const BM_QUICA_PVP = 4;                      // V no VS: 4x o dano, sem matar na hora
   const BM_NUKE_QUEDA = 70;                    // F: quadros ate a bomba nuclear cair
+
+  // cronomante
+  const CR_Z_T = 16, CR_TIRO_SPD = 3.2, CR_TIRO_MULT = 2;   // Z: relogio com 2x o dano da arma
+  const CR_LENTO_T = 180;                      // Z: quem e atingido fica lento (metade da velocidade) por 3 s
+  const CR_REBOBINA = 180;                     // X: volta 3 s no tempo
+  const CR_PARADO_T = 240;                     // C: tempo parado por 4 s
+  const CR_PARADOXO_T = 180, CR_PARADOXO_MIN = 2, CR_PARADOXO_PVP = 6;   // V: em 3 s o dano volta em dobro
+  const CR_FIM_T = 90;                         // F: 1,5 s ate o fim dos tempos
+  // necromante
+  const NC_LACAIOS = 3, NC_LACAIO_T = 900;     // X: 3 esqueletos aliados por 15 s
+  const NC_LACAIO_SPD = 1.1, NC_LACAIO_CD = 40, NC_LACAIO_MULT = 2;
+  const NC_ELO_T = 360;                        // C: 6 s de corrente de almas
+  const NC_COLHEITA_MULT = 3, NC_COLHEITA_GOLPE = 12;   // V: quem nao e executado leva 3x o dano
+  const NC_SUB_T = 60;                         // F: 1 s ate as maos arrastarem todos
+  // engenheiro
+  const EN_Z_T = 7, EN_Z_SPD = 4.4, EN_Z_ESPALHA = 0.14;   // Z: um prego a cada 7 quadros, segurando
+  const EN_TORRETAS = 2, EN_TORRETA_T = 1200;  // X: ate 2 torretas por 20 s
+  const EN_TORRETA_CD = 22, EN_TORRETA_ALC = 200;
+  const EN_REFLETOR_T = 360, EN_REFLETOR_R = 30;   // C: 6 s refletindo tiros com o dobro do dano
+  const EN_LASER_T = 180, EN_LASER_TICK = 8;   // V: 3 s de laser, dano a cada 8 quadros
+  const EN_DRONE_SPD = 4.5, EN_DRONE_SOBE = 40;    // F: drones sobem 2/3 s e mergulham
+  // druida
+  const DR_FORMA_T = 720;                      // X e C: 12 s de lobo ou urso
+  const DR_LOBO_SPD = 2.4, DR_URSO_SPD = 1.1;
+  const DR_RAIZ_T = 60;                        // Z: o espinho prende por 1 s
+  const DR_BOSQUE_T = 600, DR_BOSQUE_R = 56, DR_BOSQUE_CURA = 90;   // V: 10 s, cura meio coracao a cada 1,5 s
+  const DR_FURIA_T = 60;
+  // vampira
+  const VP_LANCA_SPD = 5, VP_LANCA_MULT = 3;
+  const VP_MORCEGO_T = 150, VP_MORCEGO_SPD = 3, VP_MORCEGO_CD = 20;
+  const VP_BANQUETE_MULT = 3, VP_BANQUETE_CURA = 6;
+  const VP_LUA_T = 60;
 
   // elementos do mago, na ordem do ciclo
   const ELEMENTS = [
@@ -266,44 +323,101 @@
     guerreiro: {
       nome: 'GUERREIRO', arma: 'ESPADA', modo: 'melee',
       hp: 10, speed: 1.5, dmg: 1, dash: 1,
-      xEspera: 60,                           // investida (X): sem abates, so 1 s de espera apos usar
+      xEspera: 180,                          // investida (X): sem abates, recarrega em 3 s
       desc: ['GOLPE EM ARCO DE 180 GRAUS', 'CORPO A CORPO, CURTO ALCANCE'],
-      skill: 'BOLA DE FOGO'
+      skill: 'BOLA DE FOGO',
+      hab: ['INVESTIDA (X, SEGURE)', 'TORNADO (C)', 'RELAMPAGO (V)'],
+      dica: 'X INVESTIDA 3s   C TORNADO 3s   V RELAMPAGO', dicaCor: '#c8cede'
     },
     arqueiro: {
       nome: 'ARQUEIRO', arma: 'ARCO', modo: 'bow',
       hp: 10, speed: 1.7, dmg: 1, dash: 2,   // rolamento em dobro
       desc: ['FLECHAS A DISTANCIA', 'MAIS RAPIDO, ROLAMENTO LONGO'],
-      skill: 'ONDA DE CHOQUE'
+      skill: 'ONDA DE CHOQUE',
+      hab: ['SALVA DE 3 FLECHAS (X, SEGURE)', '4 GIROS (C)', 'DOURADA (V)'],
+      dica: 'SEGURA J CARREGA   X SALVA DE 3 (SEGURE = 4)   C 4 GIROS', dicaCor: '#7fd858'
     },
     mago: {
       nome: 'MAGO', arma: 'CAJADO', modo: 'magic',
       hp: 10, speed: 1.2, dmg: 2, dash: 1,
       desc: ['CAJADO EM ARCO + MAGIA A CADA GOLPE', 'DANO DOBRADO, MAIS LENTO'],
-      skill: 'METEORO ELEMENTAL'
+      skill: 'METEORO ELEMENTAL', sprArma: 'staff',
+      hab: ['TEMPESTADE DE RAIOS (X)', 'ESCUDO (C)', 'INFERNO (V)'],
+      dica: '7 FOGO > 4 GELO > 2 RAIO   X RAIOS   C ESCUDO   V INFERNO', dicaCor: '#7ff2ff'
     },
     ninja: {
       nome: 'NINJA', arma: 'KATANA', modo: 'ninja',
       hp: 10, speed: 1.6, dmg: 2, dash: 1,   // katana: 2x o dano da espada
       desc: ['KATANA EM ARCO, 2X O DANO DA ESPADA', 'ESTRELAS, VELOCIDADE E VENENO'],
-      skill: 'EXPLOSIVOS'
+      skill: 'EXPLOSIVOS', sprArma: 'katana',
+      hab: ['ESTRELAS NINJA (X)', 'VELOCIDADE (C)', 'VENENO (V)'],
+      dica: 'X 5 ESTRELAS   C VELOCIDADE 10s   V VENENO', dicaCor: '#7fd858'
     },
     percy: {
       nome: 'PERCY', arma: 'TRIDENTE', modo: 'percy',
       hp: 10, speed: 1.5, dmg: 1, dash: 1, alcance: 1.5,   // golpe da espada com 1,5x o alcance
       xEspera: 180,                          // tridente (X): sem abates, so 3 s de espera apos arremessar
       desc: ['TRIDENTE EM ARCO, 1,5X O ALCANCE', 'PODERES DA AGUA'],
-      skill: 'TSUNAMI'
+      skill: 'TSUNAMI', sprArma: 'tridente',
+      hab: ['TRIDENTE (X)', 'BARREIRA (C)', 'REDEMOINHO (V)'],
+      dica: 'X TRIDENTE 3s   C BARREIRA   V REDEMOINHO', dicaCor: '#5aa7ff'
     },
     bomber: {
       nome: 'BOMBER', arma: 'BOMBAS', modo: 'bomber',
       hp: 10, speed: 1.4, dmg: 1, dash: 1,
-      desc: ['BOMBAS EM ARCO, A 10a E GRANDE', 'MINAS, ESCUDO E BOMBA GRUDENTA'],
-      skill: 'BOMBA NUCLEAR'
+      desc: ['BOMBAS EM ARCO, A 10a E GRANDE', 'MINAS, ESCUDO E BOMBA QUICANTE'],
+      skill: 'BOMBA NUCLEAR',
+      hab: ['3 MINAS (X)', 'ESCUDO DE BOMBAS (C)', 'BOMBA QUICANTE (V)'],
+      dica: 'X 3 MINAS   C ESCUDO DE BOMBAS   V BOMBA QUICANTE', dicaCor: '#ff8a3d'
+    },
+    crono: {
+      nome: 'CRONOMANTE', arma: 'RELOGIO', modo: 'crono',
+      hp: 10, speed: 1.5, dmg: 1, dash: 1,
+      desc: ['RELOGIO QUE DEIXA OS ALVOS LENTOS', 'VOLTA, PARA E DOBRA O TEMPO'],
+      skill: 'FIM DOS TEMPOS',
+      hab: ['REBOBINAR 3s (X)', 'PARAR O TEMPO (C)', 'PARADOXO (V)'],
+      dica: 'X VOLTA 3s   C PARA O TEMPO 4s   V O DANO VOLTA EM DOBRO', dicaCor: '#5ce1ff'
+    },
+    necro: {
+      nome: 'NECROMANTE', arma: 'FOICE', modo: 'necro',
+      hp: 10, speed: 1.4, dmg: 1, dash: 1, alcance: 1.3, sprArma: 'foiceArma',
+      rouboZ: 4,                               // a cada 4 golpes do Z cura meio coracao
+      desc: ['FOICE LONGA QUE ROUBA VIDA', 'MORTOS-VIVOS, CORRENTES E EXECUCAO'],
+      skill: 'PORTAL DO SUBMUNDO',
+      hab: ['ERGUER MORTOS (X)', 'CORRENTE DE ALMAS (C)', 'COLHEITA (V)'],
+      dica: 'X 3 ESQUELETOS   C DANO COMPARTILHADO   V EXECUTA', dicaCor: '#7fd858'
+    },
+    engenheiro: {
+      nome: 'ENGENHEIRO', arma: 'REBITADORA', modo: 'engenheiro',
+      hp: 10, speed: 1.5, dmg: 1, dash: 1,
+      desc: ['SEGURE J: TIRO AUTOMATICO', 'TORRETAS, REFLETOR E LASER'],
+      skill: 'ENXAME DE DRONES',
+      hab: ['TORRETA (X)', 'CAMPO REFLETOR (C)', 'LASER (V)'],
+      dica: 'X TORRETA   C DEVOLVE TIROS   V LASER (MIRE COM AS SETAS)', dicaCor: '#ffd34d'
+    },
+    druida: {
+      nome: 'DRUIDA', arma: 'ESPINHOS', modo: 'druida',
+      hp: 10, speed: 1.5, dmg: 1, dash: 1,
+      desc: ['ESPINHOS QUE PRENDEM', 'VIRA LOBO OU URSO'],
+      skill: 'FURIA DA FLORESTA',
+      hab: ['FORMA DE LOBO (X)', 'FORMA DE URSO (C)', 'BOSQUE SAGRADO (V)'],
+      dica: 'X LOBO RAPIDO   C URSO (METADE DO DANO)   V BOSQUE QUE CURA', dicaCor: '#7fd858'
+    },
+    vampira: {
+      nome: 'VAMPIRA', arma: 'RAPIEIRA', modo: 'vampira',
+      hp: 10, speed: 1.7, dmg: 1, dash: 1, alcance: 1.1, sprArma: 'rapieira',
+      rouboZ: 3,                               // a cada 3 golpes do Z cura meio coracao; cada abate cura tambem
+      custo: [1, 2, 3], recarga: [60, 300, 600],   // X, C e V custam meios-coracoes, nao abates
+      desc: ['RAPIEIRA QUE ROUBA VIDA; ABATES CURAM', 'X, C E V CUSTAM VIDA, NAO ABATES'],
+      skill: 'LUA DE SANGUE',
+      hab: ['LANCA DE SANGUE (X)', 'MORCEGOS (C)', 'BANQUETE (V)'],
+      dica: 'X LANCA -1   C MORCEGOS -2   V BANQUETE -3 (MEIOS-CORACOES)', dicaCor: '#e33b4e',
+      regra: 'X, C E V CUSTAM VIDA E TEM RECARGA CURTA (O F TEM 60s)'
     }
   };
   G.CLASSES = CLASSES;
-  G.CLASS_IDS = ['guerreiro', 'arqueiro', 'mago', 'ninja', 'percy', 'bomber'];
+  G.CLASS_IDS = ['guerreiro', 'arqueiro', 'mago', 'ninja', 'percy', 'bomber',
+    'crono', 'necro', 'engenheiro', 'druida', 'vampira'];
   // loja (menu do ESC): cada item se compra uma vez, com as moedas do proprio jogador
   const LOJA = [
     { id: 'cura', preco: 100, nome: 'CURA AUTOMATICA', desc: 'MEIO CORACAO A CADA 10 S' },
@@ -348,10 +462,21 @@
       this.dashCheia = false;
       this.xCd = 0;                    // espera apos o X nas classes sem abates no X (def.xEspera), em quadros
       if (this.def.xEspera) this.spCd = 0;
+      if (this.def.custo) { this.spCd = 0; this.spinCd = 0; this.goldCd = 0; }   // vampira: paga com vida
       this.turbo = 0;                  // ninja: quadros de velocidade extra (C)
       this.tridenteT = 0;              // Percy: quadros ate o tridente arremessado voltar (X)
       this.bombasZ = 0;                // bomber: bombas lancadas no Z (a 10a e grande)
       this.minas = 0;                  // bomber: minas que ainda pode plantar (X)
+      this.pose = 0;                   // quadros na pose de ataque sem travar o passo (engenheiro)
+      this.cdZ = 0; this.tiros = 0;    // engenheiro: espera ate o proximo prego
+      this.laser = 0; this.laserLen = 0;   // engenheiro: quadros de laser (V)
+      this.hist = []; this.histSala = null;   // cronomante: os ultimos 3 s (posicao e vida)
+      this.eco = 0; this.ecoPts = null;      // cronomante: rastro do rebobinar
+      this.golpes = 0;                 // golpes do Z ate o proximo roubo de vida (necromante, vampira)
+      this.forma = 'humano'; this.formaT = 0;   // druida
+      this.morcego = 0; this.morcegoHit = null; // vampira: enxame de morcegos (C)
+      this.cdX = 0; this.cdC = 0; this.cdV = 0; // vampira: recargas por tempo
+      this.lento = 0; this.raiz = 0;   // efeitos de lentidao (relogio) e raizes (espinho)
       this.compras = {};               // itens da loja ja comprados (id -> true)
       this.curaT = 0;
       this.menu = null;                // menu do ESC aberto: { aba, sel }
@@ -365,7 +490,7 @@
       this.respawnT = 0;               // multijogador: quadros ate voltar
       this.speed = this.def.speed;
       this.atk = 0; this.roll = 0; this.rollCd = 0;
-      this.fireCd = 0; this.cast = 0;
+      this.fireCd = 0; this.cast = 0; this.magiaCd = 0;
       this.fireMax = FIRE_CD;
       this.inv = 0; this.knock = 0;
       this.kx = 0; this.ky = 0;
@@ -433,7 +558,7 @@
       const ang = this.swingAngle();
       const ca = Math.cos(ang), sa = Math.sin(ang);
       const hx = this.handX(), hy = this.handY();
-      const alcance = this.def.alcance || 1;
+      const alcance = this.alcance();
       for (let i = 0; i < BLADE_HITS.length; i++) {
         const d = BLADE_HITS[i] * alcance, b = this._boxes[i];
         b.x = hx + ca * d - b.w / 2;
@@ -448,11 +573,42 @@
       return b;
     }
 
+    alcance() {
+      if (this.forma === 'urso') return 1.2;
+      if (this.forma === 'lobo') return 0.8;
+      return this.def.alcance || 1;
+    }
+
+    // quem ataca girando a arma em arco (e desenha lamina e rastro)
+    golpeEmArco() {
+      const m = this.def.modo;
+      return m === 'melee' || m === 'ninja' || m === 'percy' || m === 'necro' || m === 'vampira' ||
+        (m === 'druida' && this.forma !== 'humano');
+    }
+    giraArma() { return this.golpeEmArco() || this.def.modo === 'magic'; }
+    armaSprite() { return this.forma !== 'humano' ? 'garra' : this.def.sprArma || 'blade'; }
+
+    // roubo de vida do Z (necromante e vampira): a cada N golpes cura meio coracao
+    roubaVida(g) {
+      if (!this.def.rouboZ || ++this.golpes < this.def.rouboZ) return;
+      this.golpes = 0;
+      if (this.hp >= this.maxhp) return;
+      this.heal(1);
+      g.particles.burst(this.cx, this.cy - 4, 5, 2, 1, 14);
+    }
+
     // dano base das habilidades (X, C, V); o item 'especial' da loja soma 1
     dano() { return this.def.dmg * this.sword + (this.compras.especial ? 1 : 0); }
     // dano do ataque principal (J); o item 'arma' da loja soma 1
-    danoArma() { return this.def.dmg * this.sword + (this.compras.arma ? 1 : 0); }
-    velBase() { return this.def.speed * (this.compras.vel ? VEL_MULT : 1); }
+    // (lobo morde com 2x, urso bate com 3x)
+    danoArma() {
+      const f = this.forma === 'urso' ? 3 : this.forma === 'lobo' ? 2 : 1;
+      return (this.def.dmg * this.sword + (this.compras.arma ? 1 : 0)) * f;
+    }
+    velBase() {
+      const base = this.forma === 'lobo' ? DR_LOBO_SPD : this.forma === 'urso' ? DR_URSO_SPD : this.def.speed;
+      return base * (this.compras.vel ? VEL_MULT : 1);
+    }
 
     compra(id) {
       this.compras[id] = true;
@@ -460,26 +616,52 @@
     }
 
     // cada abate conta para liberar X, C e V e adianta a recarga do F
-    abateu() {
+    // fonte: 'x', 'c' ou 'v' quando o abate veio de um especial (ele nao recarrega a si mesmo)
+    abateu(fonte) {
+      if (this.def.custo) this.heal(1);          // vampira: cada abate cura meio coracao
       const antes = this.fireCd;
       this.fireCd = Math.max(0, this.fireCd - KILL_REFUND);
-      return this.carrega(1) || antes !== this.fireCd;
+      return this.carrega(1, fonte) || antes !== this.fireCd;
     }
 
     // especial ainda travado: avisa quanto falta
     bloqueado(g, falta) {
       Sound.play('blocked');
       const vs = g.modo() === 'vs';
-      g.say('FALTA' + (falta > 1 ? 'M ' : ' ') + falta + (vs ? ' DE DANO' : falta > 1 ? ' ABATES' : ' ABATE'), 50);
+      const chefe = g.boss && !g.boss.dead;
+      g.say('FALTA' + (falta > 1 ? 'M ' : ' ') + falta + (vs ? ' DE DANO' : falta > 1 ? ' ABATES' : ' ABATE') +
+        (chefe ? '\nBATER NO CHEFE TAMBEM CARREGA' : ''), 60);
     }
 
     // avanca X, C e V em `n` (abates, ou pontos de dano no oponente no VS)
-    carrega(n) {
+    // o especial que causou o abate/dano (fonte) nao carrega; os outros sim
+    carrega(n, fonte) {
       const antes = this.spCd + this.spinCd + this.goldCd;
-      this.spCd = Math.max(0, this.spCd - n);
-      this.spinCd = Math.max(0, this.spinCd - n);
-      this.goldCd = Math.max(0, this.goldCd - n);
+      if (fonte !== 'x') this.spCd = Math.max(0, this.spCd - n);
+      if (fonte !== 'c') this.spinCd = Math.max(0, this.spinCd - n);
+      if (fonte !== 'v') this.goldCd = Math.max(0, this.goldCd - n);
       return antes !== this.spCd + this.spinCd + this.goldCd;
+    }
+
+    // de qual especial vem o que o heroi fizer neste quadro: tecla apertada agora ou especial em andamento
+    fonteAtiva(i) {
+      if (this.golpeChao) return this.golpeChao.tipo === 'raio' ? 'x' : 'v';   // mago: a batida do X/V sai depois
+      if (i.hit('special')) return 'x';
+      if (i.hit('spin')) return 'c';
+      if (i.hit('gold')) return 'v';
+      if (this.dashLeft > 0 || this.rajadas > 0 || this.forma === 'lobo') return 'x';
+      if (this.giro > 0 || this.spin > 0 || this.forma === 'urso' || this.morcego > 0) return 'c';
+      if (this.rush || this.laser > 0) return 'v';
+      return null;
+    }
+    recargas() { return [this.spCd, this.spinCd, this.goldCd, this.xCd, this.cdX, this.cdC, this.cdV]; }
+    // qual especial foi usado neste quadro (a recarga dele voltou a subir)
+    especialUsado(a) {
+      const b = this.recargas();
+      if (b[0] > a[0] || b[3] > a[3] || b[4] > a[4]) return 'x';
+      if (b[1] > a[1] || b[5] > a[5]) return 'c';
+      if (b[2] > a[2] || b[6] > a[6]) return 'v';
+      return null;
     }
 
     elemento() { return ELEMENTS[CICLO_ELEM[this.elem % CICLO_ELEM.length]]; }
@@ -493,7 +675,7 @@
     }
 
     startAttack(g) {
-      if (this.def.modo === 'melee' || this.def.modo === 'ninja' || this.def.modo === 'percy') {
+      if (this.golpeEmArco()) {
         this.atk = ATK_TIME;
         this.hitSet.clear();
         Sound.play('swing');
@@ -504,6 +686,12 @@
       } else if (this.def.modo === 'bomber') {
         this.atk = BM_Z_T;
         this.lancaBomba(g);
+      } else if (this.def.modo === 'crono') {
+        this.atk = CR_Z_T;
+        this.lancaRelogio(g);
+      } else if (this.def.modo === 'druida') {   // druida em forma humana: espinho
+        this.atk = CR_Z_T;
+        this.lancaEspinho(g);
       } else {                         // mago: varre o cajado como a espada e solta a magia
         this.atk = ATK_TIME;
         this.hitSet.clear();
@@ -677,7 +865,7 @@
         if (e instanceof Player) continue;
         if (e.boss) {
           const a = Math.atan2(e.cy - this.cy, e.cx - this.cx);
-          G.ferirBruto(g, e, Math.max(1, Math.ceil(e.maxhp / 3)), Math.cos(a), Math.sin(a), this);
+          G.ferirBruto(g, e, Math.max(1, Math.ceil(e.maxhp / (e.fracF || 3))), Math.cos(a), Math.sin(a), this);
         } else {
           e.fogo = MG_INFERNO_T; e.fogoT = FOGO_TICK; e.fogoFatal = true; e.fogoDono = this;
         }
@@ -742,7 +930,7 @@
       g.say('ESTRELAS NINJA!', 50);
     }
 
-    /* ---------- bomber: Z bombas, X minas, C escudo de bombas, V bomba grudenta ---------- */
+    /* ---------- bomber: Z bombas, X minas, C escudo de bombas, V bomba quicante ---------- */
 
     lancaBomba(g) {
       this.bombasZ++;
@@ -781,16 +969,312 @@
       if (i.hit('gold')) {
         if (this.goldCd > 0) this.bloqueado(g, this.goldCd);
         else {
-          const alvo = this.proximoAlvo(g, new Set());
-          if (!alvo) { Sound.play('blocked'); g.say('NENHUM INIMIGO', 40); }
+          if (!this.proximoAlvo(g, new Set())) { Sound.play('blocked'); g.say('NENHUM INIMIGO', 40); }
           else {
             this.goldCd = this.goldMax;
-            g.addEnt(new BombaGrudenta(this.cx, this.cy - 4, alvo, this.dano() * BM_GRUDA_PVP));
+            g.addEnt(new BombaQuicante(this.cx, this.cy - 4, this.dano() * BM_QUICA_PVP));
             Sound.play('swing');
-            g.say('BOMBA GRUDENTA!', 60);
+            g.say('BOMBA QUICANTE!', 60);
           }
         }
       }
+    }
+
+    /* ---------- cronomante: Z relogio, X rebobinar, C parar o tempo, V paradoxo ---------- */
+
+    lancaRelogio(g) {
+      const v = DIR_VEC[this.dir], m = this.muzzle(8);
+      const sh = new Shot(m[0] - 3, m[1] - 3, v[0] * CR_TIRO_SPD, v[1] * CR_TIRO_SPD, 'relogio',
+        this.danoArma() * CR_TIRO_MULT, this.dir);
+      sh.friendly = true;
+      sh.onHit = (g2, e) => { e.lento = Math.max(e.lento || 0, CR_LENTO_T); };
+      g.addEnt(sh);
+      g.particles.burst(m[0], m[1], 6, 4, 1.2, 12);
+      Sound.play('cast');
+    }
+
+    // guarda os ultimos 3 s (posicao e vida) para o rebobinar; zera ao trocar de sala
+    gravaHistorico(g) {
+      if (this.histSala !== g.room) { this.hist.length = 0; this.histSala = g.room; }
+      this.hist.push({ x: this.x, y: this.y, hp: this.hp });
+      if (this.hist.length > CR_REBOBINA) this.hist.shift();
+    }
+
+    updateCrono(g, i) {
+      if (i.hit('special')) {
+        if (this.spCd > 0) this.bloqueado(g, this.spCd);
+        else if (this.hist.length < 10) Sound.play('blocked');
+        else this.rebobina(g);
+      }
+      if (i.hit('spin')) {
+        if (this.spinCd > 0) this.bloqueado(g, this.spinCd);
+        else {
+          this.spinCd = this.spinMax;
+          g.tempoParado = CR_PARADO_T; g.tempoDono = this;
+          g.flashT = Math.max(g.flashT, 6);
+          Sound.play('secret');
+          g.say('O TEMPO PAROU!', 60);
+        }
+      }
+      if (i.hit('gold')) {
+        if (this.goldCd > 0) this.bloqueado(g, this.goldCd);
+        else {
+          const alvos = g.alvos(this);
+          if (!alvos.length) { Sound.play('blocked'); g.say('NENHUM INIMIGO', 40); }
+          else {
+            this.goldCd = this.goldMax;
+            g.addEnt(new Paradoxo(this, alvos));
+            Sound.play('cast');
+            g.say('PARADOXO! BATA NELES', 70);
+          }
+        }
+      }
+    }
+
+    // volta para onde estava 3 s atras, com a vida daquela hora (se era maior) e sem efeitos
+    rebobina(g) {
+      const h = this.hist[0];
+      this.spCd = this.spMax;
+      this.ecoPts = [];
+      for (let k = this.hist.length - 1; k >= 0; k -= 20) this.ecoPts.push([this.hist[k].x, this.hist[k].y]);
+      this.eco = 40;
+      g.particles.burst(this.cx, this.cy, 14, 4, 1.8, 18);
+      this.x = h.x; this.y = h.y;
+      this.hp = Math.max(this.hp, h.hp);
+      this.fogo = 0; this.gelo = 0; this.para = 0; this.lento = 0; this.raiz = 0; this.knock = 0;
+      this.inv = Math.max(this.inv, 30);
+      this.hist.length = 0;
+      g.particles.burst(this.cx, this.cy, 20, 4, 2, 22);
+      Sound.play('secret');
+      g.say('REBOBINAR!', 50);
+    }
+
+    /* ---------- necromante: X esqueletos, C corrente de almas, V colheita ---------- */
+
+    updateNecro(g, i) {
+      if (i.hit('special')) {
+        if (this.spCd > 0) this.bloqueado(g, this.spCd);
+        else {
+          this.spCd = this.spMax;
+          for (const e of g.ents) if (e instanceof Lacaio && e.dono === this) e.some(g);   // troca os antigos
+          for (let k = 0; k < NC_LACAIOS; k++) {
+            const a = (k / NC_LACAIOS) * Math.PI * 2;
+            g.addEnt(new Lacaio(this, this.cx + Math.cos(a) * 14, this.cy + Math.sin(a) * 14, this.dano() * NC_LACAIO_MULT));
+          }
+          Sound.play('boss');
+          g.shake(3);
+          g.say('ERGAM-SE!', 60);
+        }
+      }
+      if (i.hit('spin')) {
+        if (this.spinCd > 0) this.bloqueado(g, this.spinCd);
+        else if (g.alvos(this).length < 2) { Sound.play('blocked'); g.say('PRECISA DE 2 ALVOS', 40); }
+        else {
+          this.spinCd = this.spinMax;
+          g.addEnt(new EloAlmas(this, g.alvos(this)));
+          Sound.play('cast');
+          g.say('CORRENTE DE ALMAS!', 60);
+        }
+      }
+      if (i.hit('gold')) {
+        if (this.goldCd > 0) this.bloqueado(g, this.goldCd);
+        else if (!g.alvos(this).length) { Sound.play('blocked'); g.say('NENHUM INIMIGO', 40); }
+        else {
+          this.goldCd = this.goldMax;
+          g.addEnt(new Colheita(this));
+          Sound.play('swing');
+          g.say('COLHEITA!', 60);
+        }
+      }
+    }
+
+    /* ---------- engenheiro: Z rebitadora, X torreta, C refletor, V laser ---------- */
+
+    updateEngenheiro(g, i) {
+      if (i.down('attack') && this.cdZ === 0) {         // segurando o J atira sem parar
+        this.cdZ = EN_Z_T;
+        this.pose = 8;
+        const v = DIR_VEC[this.dir], m = this.muzzle(8);
+        const a = Math.atan2(v[1], v[0]) + (Math.random() - 0.5) * EN_Z_ESPALHA;
+        const sh = new Shot(m[0] - 2, m[1] - 2, Math.cos(a) * EN_Z_SPD, Math.sin(a) * EN_Z_SPD, 'prego', this.danoArma(), this.dir);
+        sh.friendly = true; sh.life = 90;
+        g.addEnt(sh);
+        g.particles.spawn(m[0], m[1], 0, 0, 5, 1, 1, 0);
+        if ((this.tiros++ & 1) === 0) Sound.play('shoot');
+      }
+      if (i.hit('special')) {
+        if (this.spCd > 0) this.bloqueado(g, this.spCd);
+        else {
+          this.spCd = this.spMax;
+          const minhas = g.ents.filter((e) => e instanceof Torreta && e.dono === this && !e.dead);
+          if (minhas.length >= EN_TORRETAS) minhas[0].some(g);          // a mais velha sai
+          g.addEnt(new Torreta(this, this.cx, this.cy + 2, this.dano()));
+          Sound.play('key');
+          g.say('TORRETA!', 50);
+        }
+      }
+      if (i.hit('spin')) {
+        if (this.spinCd > 0) this.bloqueado(g, this.spinCd);
+        else {
+          this.spinCd = this.spinMax;
+          g.addEnt(new CampoRefletor(this));
+          Sound.play('secret');
+          g.say('CAMPO REFLETOR!', 60);
+        }
+      }
+      if (i.hit('gold')) {
+        if (this.goldCd > 0) this.bloqueado(g, this.goldCd);
+        else {
+          this.goldCd = this.goldMax;
+          this.laser = EN_LASER_T;
+          Sound.play('shootbig');
+          g.say('LASER! MIRE COM AS SETAS', 60);
+        }
+      }
+    }
+
+    // parado mirando com as setas; o feixe vai ate a parede e acerta tudo no caminho
+    updateLaser(g, i) {
+      let dx = 0, dy = 0;
+      if (i.down('left')) dx -= 1;
+      if (i.down('right')) dx += 1;
+      if (i.down('up')) dy -= 1;
+      if (i.down('down')) dy += 1;
+      if (dx || dy) this.dir = dir8(dx, dy);
+      const v = DIR_VEC[this.dir], m = this.muzzle(6);
+      let len = 4;
+      while (len < 480) {
+        const px = m[0] + v[0] * len, py = m[1] + v[1] * len;
+        if (px < 0 || py < 0 || px > VIEW_W || py > VIEW_H || G.boxSolid(g.room, px - 1, py - 1, 2, 2, true)) break;
+        len += 3;
+      }
+      this.laserLen = len;
+      if (this.laser % EN_LASER_TICK === 0) {
+        for (const e of g.alvos(this)) {
+          if (e.dead) continue;
+          for (let d = 0; d <= len; d += 4) {
+            const px = m[0] + v[0] * d, py = m[1] + v[1] * d;
+            if (px < e.x - 3 || px > e.x + e.w + 3 || py < e.y - 3 || py > e.y + e.h + 3) continue;
+            G.ferir(g, e, this.dano(), v[0], v[1], this);
+            g.particles.burst(px, py, 4, 2, 1.4, 10);
+            break;
+          }
+        }
+        Sound.play('shoot');
+      }
+      g.particles.spawn(m[0] + v[0] * len, m[1] + v[1] * len, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, 10, 2, 1, 0);
+      this.pose = 2; this.anim = 0;
+      if (--this.laser < 0) this.laser = 0;
+    }
+
+    /* ---------- druida: Z espinho (ou garras), X lobo, C urso, V bosque ---------- */
+
+    lancaEspinho(g) {
+      const v = DIR_VEC[this.dir], m = this.muzzle(8);
+      const sh = new Shot(m[0] - 3, m[1] - 3, v[0] * 3.4, v[1] * 3.4, 'espinho', this.danoArma(), this.dir);
+      sh.friendly = true;
+      sh.onHit = (g2, e) => { e.raiz = Math.max(e.raiz || 0, DR_RAIZ_T); };
+      g.addEnt(sh);
+      Sound.play('bow');
+    }
+
+    updateDruida(g, i) {
+      if (i.hit('special')) {
+        if (this.spCd > 0) this.bloqueado(g, this.spCd);
+        else { this.spCd = this.spMax; this.mudaForma(g, 'lobo', DR_FORMA_T); }
+      }
+      if (i.hit('spin')) {
+        if (this.spinCd > 0) this.bloqueado(g, this.spinCd);
+        else { this.spinCd = this.spinMax; this.mudaForma(g, 'urso', DR_FORMA_T); }
+      }
+      if (i.hit('gold')) {
+        if (this.goldCd > 0) this.bloqueado(g, this.goldCd);
+        else {
+          this.goldCd = this.goldMax;
+          g.addEnt(new Bosque(this, this.cx, this.cy));
+          Sound.play('secret');
+          g.say('BOSQUE SAGRADO!', 60);
+        }
+      }
+    }
+
+    mudaForma(g, forma, t) {
+      this.forma = forma; this.formaT = t || 0;
+      if (this.turbo === 0) this.speed = this.velBase();
+      this.atk = 0; this.trailN = 0;
+      g.particles.burst(this.cx, this.cy, 20, 3, 2, 22);
+      Sound.play(forma === 'humano' ? 'menu' : 'secret');
+      if (forma !== 'humano') g.say(forma === 'lobo' ? 'FORMA DE LOBO!' : 'FORMA DE URSO!', 60);
+    }
+
+    /* ---------- vampira: X lanca, C morcegos, V banquete (custam vida) ---------- */
+
+    updateVampira(g, i) {
+      if (i.hit('special')) {
+        this.gastaSangue(g, 0, () => {
+          const v = DIR_VEC[this.dir], m = this.muzzle(8);
+          g.addEnt(new LancaSangue(m[0], m[1], v[0], v[1], this.dano() * VP_LANCA_MULT));
+          Sound.play('shootbig');
+          g.say('LANCA DE SANGUE!', 40);
+        });
+      }
+      if (i.hit('spin')) {
+        this.gastaSangue(g, 1, () => {
+          this.morcego = VP_MORCEGO_T; this.morcegoHit = new Map();
+          g.particles.burst(this.cx, this.cy, 20, 8, 2, 20);
+          Sound.play('spin');
+          g.say('ENXAME DE MORCEGOS!', 50);
+        });
+      }
+      if (i.hit('gold')) {
+        this.gastaSangue(g, 2, () => {
+          const alvos = g.alvos(this);
+          if (!alvos.length) { g.say('NENHUM INIMIGO', 40); return false; }
+          g.addEnt(new Banquete(this, alvos, this.dano() * VP_BANQUETE_MULT));
+          Sound.play('nova');
+          g.say('BANQUETE!', 60);
+          return true;
+        });
+      }
+    }
+
+    // X, C e V da vampira custam meios-coracoes e tem recarga curta; nunca deixam com 0 de vida
+    gastaSangue(g, k, fn) {
+      const cds = ['cdX', 'cdC', 'cdV'];
+      if (this[cds[k]] > 0) { Sound.play('blocked'); return; }
+      const custo = this.def.custo[k];
+      if (this.hp <= custo) { Sound.play('blocked'); g.say('SANGUE INSUFICIENTE', 50); return; }
+      if (fn() === false) { Sound.play('blocked'); return; }
+      this.hp -= custo;
+      this[cds[k]] = this.def.recarga[k];
+      g.particles.burst(this.cx, this.cy, 8, 2, 1.4, 16);
+    }
+
+    // enxame de morcegos: intocavel e mais rapido; atravessa os alvos mordendo e curando
+    updateMorcego(g, i) {
+      let dx = 0, dy = 0;
+      if (i.down('left')) dx -= 1;
+      if (i.down('right')) dx += 1;
+      if (i.down('up')) dy -= 1;
+      if (i.down('down')) dy += 1;
+      if (dx && dy) { dx *= D; dy *= D; }
+      if (dx || dy) {
+        this.dir = dir8(dx, dy);
+        G.moveEnt(this, g.room, dx * VP_MORCEGO_SPD, dy * VP_MORCEGO_SPD, true, true);
+      }
+      for (const e of g.alvos(this)) {
+        if (e.dead || !G.overlap(this.x - 4, this.y - 4, this.w + 8, this.h + 8, e.x, e.y, e.w, e.h)) continue;
+        const ult = this.morcegoHit.get(e);
+        if (ult !== undefined && g.tick - ult < VP_MORCEGO_CD) continue;
+        this.morcegoHit.set(e, g.tick);
+        const d = G.dist(this.cx, this.cy, e.cx, e.cy) || 1;
+        G.ferir(g, e, this.dano() * 2, (e.cx - this.cx) / d, (e.cy - this.cy) / d, this);
+        this.heal(1);
+        g.particles.burst(e.cx, e.cy, 6, 2, 1.4, 12);
+      }
+      if ((g.tick & 1) === 0) g.particles.spawn(this.cx, this.cy, (Math.random() - 0.5), (Math.random() - 0.5), 12, 8, 1, 0);
+      this.anim++;
+      if (--this.morcego <= 0) { this.morcego = 0; g.particles.burst(this.cx, this.cy, 14, 8, 1.6, 16); }
     }
 
     /* ---------- Percy: X tridente, C barreira, V redemoinho ---------- */
@@ -834,6 +1318,7 @@
     especialAtivo() { return this.dashLeft > 0 || this.giro > 0 || this.rush !== null; }
 
     cancelaEspeciais() {
+      this.laser = 0;
       this.dashLeft = 0; this.giro = 0; this.rush = null; this.lamina = null; this.golpeChao = null;
       this.spCharging = false; this.spCharge = 0;
     }
@@ -875,8 +1360,7 @@
       this.dashDmg = this.dano() * (cheia ? KN_DASH_MULT : 1);
       this.dashCheia = cheia;
       this.hitSet.clear();
-      this.xCd = this.def.xEspera;
-      this.inv = Math.max(this.inv, KN_INVULNERAVEL);
+      this.xCd = this.def.xEspera;               // a investida nao deixa invulneravel
       Sound.play(cheia ? 'shootbig' : 'swing');
       g.shake(cheia ? 6 : 3);
       g.particles.burst(this.cx, this.cy, cheia ? 18 : 8, cheia ? 0 : 1, 2, 16);
@@ -926,7 +1410,7 @@
       g.say('TORNADO DE ACO!', 60);
     }
 
-    // gira por 7 s correndo atras do inimigo mais proximo, com o dobro da velocidade de andar
+    // gira por 4 s correndo atras do inimigo mais proximo, com o dobro da velocidade de andar
     updateGiro(g) {
       const feito = KN_GIRO_T - this.giro;
       if (feito > 0 && feito % KN_GIRO_VOLTA === 0) {   // cada volta acerta de novo
@@ -1144,9 +1628,18 @@
       if (this.inv > 0) this.inv--;
       if (this.hurtT > 0) this.hurtT--;
       if (this.rollCd > 0) this.rollCd--;
+      if (this.magiaCd > 0) this.magiaCd--;
       if (this.fireCd > 0) this.fireCd--;   // so o F tem recarga por tempo
       if (this.xCd > 0) this.xCd--;
       if (this.tridenteT > 0) this.tridenteT--;
+      if (this.pose > 0) this.pose--;
+      if (this.cdZ > 0) this.cdZ--;
+      if (this.cdX > 0) this.cdX--;
+      if (this.cdC > 0) this.cdC--;
+      if (this.cdV > 0) this.cdV--;
+      if (this.eco > 0) this.eco--;
+      if (this.formaT > 0 && --this.formaT === 0) this.mudaForma(g, 'humano');
+      if (this.def.modo === 'crono') this.gravaHistorico(g);
       if (this.turbo > 0 && --this.turbo === 0) this.speed = this.velBase();
       if (this.compras.cura && ++this.curaT >= CURA_T) {   // loja: cura automatica
         this.curaT = 0;
@@ -1160,13 +1653,15 @@
       }
 
       if (this.fogo > 0) { tickFogo(g, this); if (this.dead) return; }
-      if (this.gelo > 0 || this.para > 0) {         // congelado ou paralisado: nao age
+      if (this.gelo > 0 || this.para > 0 || this.raiz > 0) {   // congelado, paralisado ou preso: nao age
         if (this.gelo > 0) this.gelo--;
         if (this.para > 0) this.para--;
+        if (this.raiz > 0) this.raiz--;
         efeitoParticulas(g, this);
         this.anim = 0;
         return;
       }
+      if (this.lento > 0) { this.lento--; if (g.tick & 1) return; }   // lento: age um quadro sim, outro nao
 
       if (this.rajadas > 0 && --this.rajadaT <= 0) {   // carga cheia do X: proximas salvas
         this.salva(g, true);
@@ -1179,6 +1674,8 @@
       if (this.dashLeft > 0) { this.updateInvestida(g); return; }
       if (this.giro > 0) { this.updateGiro(g); return; }
       if (this.rush) { this.updateRush(g); return; }
+      if (this.laser > 0) { this.updateLaser(g, i); return; }
+      if (this.morcego > 0) { this.updateMorcego(g, i); return; }
 
       if (this.spin > 0) {
         this.spin--;
@@ -1227,12 +1724,12 @@
 
       if (this.atk > 0) {
         this.atk--;
-        // arco: so recuperacao, o tiro sai ao soltar. Bomber: a bomba ja saiu no aperto
-        if (this.def.modo === 'bow' || this.def.modo === 'bomber') return;
+        // so a recuperacao para quem nao gira arma (arco, bombas, relogio, espinho)
+        if (!this.giraArma()) return;
         if (this.def.modo === 'magic' && this.atk === MAGIA_SOLTA) { this.lancarMagia(g); Sound.play('cast'); }
         if (this.atk <= ATK_WIND + ATK_SWING && this.atk > ATK_REC) {
           this.swingHit(g);
-          const ang = this.swingAngle(), ponta = 21 * (this.def.alcance || 1);
+          const ang = this.swingAngle(), ponta = 21 * this.alcance();
           this.pushTrail(ang);             // eco novo na posicao atual da lamina
           g.particles.spawn(this.handX() + Math.cos(ang) * ponta, this.handY() + Math.sin(ang) * ponta,
             0, 0, 8, 0, 1, 0);
@@ -1253,6 +1750,16 @@
         this.updatePercy(g, i);
       } else if (this.def.modo === 'bomber') {
         this.updateBomber(g, i);
+      } else if (this.def.modo === 'crono') {
+        this.updateCrono(g, i);
+      } else if (this.def.modo === 'necro') {
+        this.updateNecro(g, i);
+      } else if (this.def.modo === 'engenheiro') {
+        this.updateEngenheiro(g, i);
+      } else if (this.def.modo === 'druida') {
+        this.updateDruida(g, i);
+      } else if (this.def.modo === 'vampira') {
+        this.updateVampira(g, i);
       }
 
       // movimento
@@ -1265,7 +1772,8 @@
       if (dx || dy) {
         if (dx && dy) { dx *= D; dy *= D; }
         this.dir = dir8(dx, dy);
-        const mirando = this.charging || (this.spCharging && this.def.modo === 'melee');
+        const mirando = this.charging || (this.spCharging && this.def.modo === 'melee') ||
+          (this.def.modo === 'engenheiro' && i.down('attack'));
         const sp = mirando ? this.speed * 0.55 : this.speed;   // mira pesa o passo
         G.moveEnt(this, g.room, dx * sp, dy * sp, false, true);
         this.anim += 1;
@@ -1275,7 +1783,11 @@
 
       if (i.hit('fire') && this.fireCd === 0) { this.castFire(g); return; }
       // o Percy fica sem o tridente enquanto ele esta arremessado
-      if (i.hit('attack') && this.def.modo !== 'bow' && !this.spCharging && this.tridenteT === 0) this.startAttack(g);
+      if (i.hit('attack') && this.def.modo !== 'bow' && this.def.modo !== 'engenheiro' && !this.spCharging &&
+        this.tridenteT === 0 && this.magiaCd === 0) {
+        this.startAttack(g);
+        if (this.def.modo === 'magic') this.magiaCd = MAGIA_CD;
+      }
       else if (i.hit('roll') && this.rollCd === 0) {
         this.roll = ROLL_TIME; this.rollCd = ROLL_CD; this.inv = Math.max(this.inv, 12);
         Sound.play('swing');
@@ -1300,6 +1812,7 @@
           if (G.overlap(b.x, b.y, b.w, b.h, e.x, e.y, e.w, e.h)) {
             this.hitSet.add(e);
             G.ferir(g, e, dmg, kx, ky, this);
+            if (!mult) this.roubaVida(g);
             g.shake(3);
           }
         }
@@ -1345,6 +1858,21 @@
         return;
       }
 
+      const fNovo = {                          // F dos herois novos
+        crono: () => new FimDosTempos(this),
+        necro: () => new Submundo(this, g.alvos(this)),
+        engenheiro: () => new EnxameDrones(this, g.alvos(this)),
+        druida: () => new FuriaFloresta(this, g.alvos(this)),
+        vampira: () => new LuaSangue(this)
+      }[this.def.modo];
+      if (fNovo) {
+        g.addEnt(fNovo());
+        g.particles.burst(this.cx, this.cy - 6, 16, 1, 1.8, 18);
+        Sound.play('cast');
+        g.say(this.def.skill + '!', 70);
+        return;
+      }
+
       if (this.def.modo === 'bomber') {       // bomber: bomba nuclear cai no meio da sala
         g.addEnt(new Nuclear(G.VIEW_W / 2, G.VIEW_H / 2));
         g.particles.burst(this.cx, this.cy - 6, 14, 9, 1.6, 18);
@@ -1382,7 +1910,9 @@
     hurt(g, dmg, fx, fy) {
       const autor = this.ultimoDono;
       this.ultimoDono = null;
-      if (this.inv > 0 || this.roll > 0 || this.dead || this.especialAtivo() || this.escudo > 0) return;
+      if (this.inv > 0 || this.roll > 0 || this.dead || this.giro > 0 || this.rush || this.escudo > 0 || this.morcego > 0) return;
+      if (!autor && g.danoRecebido) dmg = g.danoRecebido(dmg);   // dificuldade (golpes de monstros; no VS nao muda)
+      if (this.forma === 'urso') dmg = Math.ceil(dmg / 2);   // urso: metade do dano
       G.danoNoOponente(g, this, autor, Math.min(dmg, this.hp));
       this.hp -= dmg;
       this.inv = 64; this.hurtT = 40;
@@ -1424,8 +1954,7 @@
 
     // espada do guerreiro, cajado do mago, katana do ninja ou tridente do Percy, na inclinacao do golpe, com rastro
     drawBlade(ctx, S, withBlade) {
-      const modo = this.def.modo;
-      const set = modo === 'magic' ? S.staff : modo === 'ninja' ? S.katana : modo === 'percy' ? S.tridente : S.blade;
+      const set = S[this.armaSprite()];
       const n = S.bladeSteps, step = (Math.PI * 2) / n, piv = set.pivot || S.bladePivot;
       // o canvas da lamina e centrado no pivo: alinha o pivo com a mao
       const hx = (this.handX() - piv) | 0, hy = (this.handY() - piv) | 0;
@@ -1445,10 +1974,22 @@
     draw(ctx, S, tick) {
       if (this.inv > 0 && (tick & 2) && this.knock <= 0 && !this.dead) return;
 
-      const arte = S.heroes[this.cls];
+      if (this.morcego > 0) {                  // vampira virada em enxame de morcegos
+        for (let k = 0; k < 5; k++) {
+          const a = tick * 0.2 + k * 1.25, r = 4 + (k % 2) * 4, img = S.bat[(tick >> 2) & 1];
+          ctx.drawImage(img, (this.cx + Math.cos(a) * r - 8) | 0, (this.cy - 4 + Math.sin(a) * r * 0.7 - 8) | 0);
+        }
+        return;
+      }
+      const arte = this.forma !== 'humano' ? S.feras[this.forma] : S.heroes[this.cls];
+      if (this.eco > 0 && this.ecoPts) {        // cronomante: rastro de onde passou ao rebobinar
+        ctx.globalAlpha = 0.35 * this.eco / 40;
+        for (const [ex, ey] of this.ecoPts) ctx.drawImage(arte.walk.down[0], (ex + this.w / 2 - 8) | 0, (ey + this.h - 14) | 0);
+        ctx.globalAlpha = 1;
+      }
       const meio = this.def.modo === 'bow' ? BOW_FIRE : ATK_WIND + ATK_SWING;
       const winding = this.charging || this.spCharging || this.atk > meio;
-      const img = (this.atk > 0 || this.charging || this.spCharging || this.spin > 0 || this.lamina !== null)
+      const img = (this.atk > 0 || this.pose > 0 || this.charging || this.spCharging || this.spin > 0 || this.lamina !== null)
         ? arte.atk[this.dir][winding ? 0 : 1]
         : arte.walk[this.dir][this.roll > 0 ? ((this.roll >> 1) & 1) : this.cast > 0 ? ((this.cast >> 1) & 1) : this.frame()];
 
@@ -1463,7 +2004,7 @@
       // direcoes lamina e rastro ficam atras do heroi
       const naFrente = this.dir === 'down';
       const modo = this.def.modo;
-      const melee = modo !== 'bow' && modo !== 'bomber';   // espada, cajado, katana e tridente giram em arco
+      const melee = this.giraArma();             // espada, cajado, katana, tridente, foice, rapieira e garras
       const temArma = this.atk > 0 || this.charging || this.spCharging || this.spin > 0 || this.lamina !== null, temRastro = melee && this.trailN > 0;
       const arma = () => {
         if (!melee) { if (temArma && modo === 'bow') this.drawArma(ctx, S); return; }
@@ -1475,6 +2016,13 @@
       ctx.drawImage(img, dx, dy);
       if (naFrente) arma();
       desenhaEfeito(ctx, this, dx, dy, 16, 16, tick);
+      if (this.laser > 0) {                     // engenheiro: feixe vermelho com miolo branco
+        const v = DIR_VEC[this.dir], m = this.muzzle(6), n = this.laserLen | 0, w = (tick & 2) ? 3 : 2;
+        ctx.fillStyle = 'rgba(255,60,60,0.8)';
+        for (let d = 0; d < n; d++) ctx.fillRect((m[0] + v[0] * d - w / 2) | 0, (m[1] + v[1] * d - w / 2) | 0, w, w);
+        ctx.fillStyle = '#fff6f0';
+        for (let d = 0; d < n; d++) ctx.fillRect((m[0] + v[0] * d) | 0, (m[1] + v[1] * d) | 0, 1, 1);
+      }
       if (this.escudo > 0 && !(this.escudo < 90 && (tick & 4))) {   // pisca no ultimo 1,5 s
         const r = 12 + Math.sin(tick * 0.2);
         ctx.fillStyle = 'rgba(127,242,255,0.18)';
@@ -1508,6 +2056,8 @@
   function danoDireto(g, e, n, dono) {
     if (e.dead || e.escudo > 0) return;
     if (e instanceof Player) G.danoNoOponente(g, e, dono, Math.min(n, e.hp));
+    if (dono) e.ultimoDono = dono;
+    cargaNoChefe(g, e, Math.min(n, e.hp));             // queimadura e veneno no chefe tambem carregam
     e.hp -= n;
     e.hurtT = 6;
     if (dono) e.ultimoDono = dono;
@@ -1519,6 +2069,12 @@
 
   // queimando: 1 de dano por segundo, sem empurrar; o abate conta para quem lancou
   function tickFogo(g, e) {
+    const f0 = g.fonteDano;
+    g.fonteDano = e.fogoFonte || null;
+    queima(g, e);
+    g.fonteDano = f0;
+  }
+  function queima(g, e) {
     e.fogo--;
     if (e.fogoFatal && e.fogo <= 0) { e.fogoFatal = false; danoDireto(g, e, e.hp, e.fogoDono); return; }
     if ((g.tick & 3) === 0) {
@@ -1559,6 +2115,17 @@
     if (e.fogo > 0 && (tick & 2)) {
       ctx.fillStyle = 'rgba(255,106,36,0.35)';
       ctx.fillRect(x + 1, y + (h >> 1), w - 2, h >> 1);
+    }
+    if (e.raiz > 0) {                             // raizes verdes subindo pelas pernas
+      ctx.fillStyle = '#3f8a2a';
+      for (let k = 0; k < 4; k++) ctx.fillRect(x + 2 + k * ((w - 4) / 3) | 0, y + h - 3 - (k & 1), 1, 3 + (k & 1));
+      ctx.fillStyle = '#7fd858';
+      ctx.fillRect(x + 1, y + h - 1, w - 2, 1);
+    }
+    if (e.lento > 0) {                            // relogio azul girando devagar
+      ctx.fillStyle = '#5ce1ff';
+      const a = tick * 0.05;
+      ctx.fillRect((x + w / 2 + Math.cos(a) * (w / 2 + 2)) | 0, (y + 2 + Math.sin(a) * 3) | 0, 2, 2);
     }
     if (e.para > 0) {
       ctx.fillStyle = (tick & 4) ? '#fff6a0' : '#7ff2ff';
@@ -1610,6 +2177,17 @@
 
   /* ================= inimigos ================= */
 
+  // dano causado num chefe carrega o X, C e V de quem bateu (como os abates)
+  function cargaNoChefe(g, e, dmg) {
+    const p = e.ultimoDono;
+    if (!e.boss || !(p instanceof Player) || dmg <= 0) return;
+    p.danoChefe = (p.danoChefe || 0) + Math.min(dmg, DANO_POR_CARGA * CARGA_MAX_GOLPE);
+    const n = Math.floor(p.danoChefe / DANO_POR_CARGA);
+    if (!n) return;
+    p.danoChefe -= n * DANO_POR_CARGA;
+    if (p.carrega(n, g.fonteDano) && p === g.player) g.cdPulse = 10;
+  }
+
   class Enemy extends Ent {
     constructor(x, y, w, h, hp) {
       super(x, y, w, h);
@@ -1619,6 +2197,7 @@
       this.kx = 0; this.ky = 0; this.knock = 0;
       this.spd = 0.5;
       this.gelo = 0; this.fogo = 0; this.para = 0;   // efeitos das magias do mago
+      this.raiz = 0; this.lento = 0;               // preso por raizes (druida) e lento (cronomante)
       this.t = (Math.random() * 120) | 0;
       this.loot = 1;
     }
@@ -1633,6 +2212,13 @@
         efeitoParticulas(g, this);
         return;
       }
+      if (this.raiz > 0) {                          // preso por raizes: nao sai do lugar, mas machuca no toque
+        this.raiz--;
+        this.knock = 0;
+        this.contact(g);
+        return;
+      }
+      if (this.lento > 0) { this.lento--; if (g.tick & 1) { this.contact(g); return; } }   // metade da velocidade
       this.t++;
       if (this.arrasto) {                          // voando ate a parede ou a borda da sala
         const [ax, ay] = this.arrasto, ox = this.x, oy = this.y;
@@ -1657,7 +2243,7 @@
 
     // flecha do arqueiro: 'triplo' = 3x o empurrao normal; 'total' = arrasta ate bater (chefe so leva o triplo)
     empurra(dx, dy, modo) {
-      if (this.gelo > 0 || this.para > 0) return;   // preso no gelo ou paralisado nao sai do lugar
+      if (this.gelo > 0 || this.para > 0 || this.raiz > 0) return;   // preso no gelo, paralisado ou enraizado nao sai do lugar
       if (modo === 'total' && !this.boss) {
         this.arrasto = [dx * EMPURRA_TOTAL_VEL, dy * EMPURRA_TOTAL_VEL];
         this.knock = 1;
@@ -1689,6 +2275,7 @@
 
     hurt(g, dmg, dx, dy) {
       if (this.hp <= 0) return;
+      cargaNoChefe(g, this, Math.min(dmg, this.hp));
       this.hp -= dmg;
       this.hurtT = 10;
       this.kx = dx * 3.0; this.ky = dy * 3.0;
@@ -1717,7 +2304,7 @@
     } else {
       Ent.prototype.draw.call(this, ctx, S, tick);
     }
-    if (!img || !(this.gelo > 0 || this.fogo > 0 || this.para > 0)) return;
+    if (!img || !(this.gelo > 0 || this.fogo > 0 || this.para > 0 || this.raiz > 0 || this.lento > 0)) return;
     const dx = (this.cx - img.width / 2) | 0;
     const dy = this.fly ? (this.cy - img.height / 2) | 0 : (this.y + this.h - img.height + 2) | 0;
     desenhaEfeito(ctx, this, dx, dy, img.width, img.height, tick);
@@ -3296,6 +3883,7 @@
           if (!this.hits(e)) continue;
           const d = Math.hypot(this.vx, this.vy) || 1;
           G.ferir(g, e, this.dmg, this.vx / d, this.vy / d, this.dono);
+          if (this.onHit) this.onHit(g, e);
           if (this.elem && this.elem.id !== 'fogo') {   // a bola de fogo so causa o dano do impacto
             G.aplicaElemento(g, e, this.elem, this.dono);
             if (this.elem.id === 'raio') G.raioEmCadeia(g, e, this.dmg, this.dono);
@@ -3619,7 +4207,7 @@
         this.atingidos.push(e);
         const a = Math.atan2(e.cy - this.oy, e.cx - this.ox);
         // ignora armadura e fases intangiveis; chefe leva 1/3, jogador (VS) leva PVP_F
-        const dmg = e instanceof Player ? PVP_F : e.boss ? Math.max(1, Math.ceil(e.maxhp / 3)) : 999;
+        const dmg = e instanceof Player ? PVP_F : e.boss ? Math.max(1, Math.ceil(e.maxhp / (e.fracF || 3))) : 999;
         G.ferirBruto(g, e, dmg, Math.cos(a), Math.sin(a), this.dono);
         if (e.boss) g.particles.burst(e.cx, e.cy, 12, 3, 2, 20);
       }
@@ -3819,7 +4407,7 @@
       const e = this.alvo;
       if (!e.dead) {
         const a = Math.atan2(e.cy - this.y0, e.cx - this.x0);
-        const dmg = e instanceof Player ? PVP_F : e.boss ? Math.max(1, Math.ceil(e.maxhp / 3)) : 999;
+        const dmg = e instanceof Player ? PVP_F : e.boss ? Math.max(1, Math.ceil(e.maxhp / (e.fracF || 3))) : 999;
         G.ferirBruto(g, e, dmg, Math.cos(a), Math.sin(a), this.dono);
       }
       // o que nasce da explosao (slime que se divide) tambem vai junto
@@ -3955,48 +4543,51 @@
     }
   }
 
-  // bomba grudenta (V): voa ate o alvo mais proximo e gruda nele; se ele andar, explode.
-  // Monstro morre na hora, chefe leva 1/3 da vida, oponente no VS leva BM_GRUDA_PVP x o dano
-  class BombaGrudenta extends Ent {
-    constructor(x0, y0, alvo, dmgPvp) {
+  // bomba quicante (V): pula de inimigo em inimigo (sempre o mais proximo ainda nao atingido),
+  // explodindo em cada um. Monstro morre na hora, chefe leva 1/3 da vida, oponente no VS leva
+  // BM_QUICA_PVP x o dano. Sem mais ninguem, some no ultimo pulo
+  class BombaQuicante extends Ent {
+    constructor(x0, y0, dmgPvp) {
       super(x0 - 4, y0 - 4, 8, 8);
-      this.x0 = x0; this.y0 = y0; this.alvo = alvo; this.dmgPvp = dmgPvp;
-      this.t = 0; this.alt = 0;
-      this.grudada = false; this.sx = 0; this.sy = 0;
+      this.x0 = x0; this.y0 = y0; this.dmgPvp = dmgPvp;
+      this.alvo = null; this.t = 0; this.alt = 0;
+      this.feitos = new Set();
+    }
+    proximo(g) {
+      let best = null, bd = Infinity;
+      for (const e of g.alvos(this.dono)) {
+        if (e.dead || this.feitos.has(e)) continue;
+        const d = (e.cx - this.cx) ** 2 + (e.cy - this.cy) ** 2;
+        if (d < bd) { bd = d; best = e; }
+      }
+      return best;
     }
     update(g) {
-      const e = this.alvo;
       this.anim++;
-      if (e.dead) { this.dead = true; return; }
-      if (!this.grudada) {
-        const k = ++this.t / BM_GRUDA_VOO;
-        this.x = G.lerp(this.x0, e.cx, k) - 4; this.y = G.lerp(this.y0, e.cy, k) - 4;
-        this.alt = Math.sin(k * Math.PI) * 16;
-        if (this.t >= BM_GRUDA_VOO) {
-          this.grudada = true; this.sx = e.x; this.sy = e.y;
-          Sound.play('key');
-          g.particles.burst(e.cx, e.y, 6, 2, 1, 12);
-        }
-        return;
-      }
-      this.x = e.cx - 4; this.y = e.y + e.h;          // desenhada depois do alvo
-      if (Math.hypot(e.x - this.sx, e.y - this.sy) < BM_GRUDA_MOVE) return;
-      this.dead = true;
-      const dmg = e instanceof Player ? this.dmgPvp : e.boss ? Math.max(1, Math.ceil(e.maxhp / 3)) : 999;
-      G.ferirBruto(g, e, dmg, 0, -1, this.dono);
-      g.particles.burst(e.cx, e.cy, 26, 9, 2.6, 24, 2);
-      g.particles.burst(e.cx, e.cy, 10, 1, 1.6, 20);
-      g.shake(8);
-      Sound.play('nova');
-    }
-    draw(ctx, S, tick) {
-      if (!this.grudada) {
-        ctx.drawImage(S.bomba[(this.anim >> 2) & 1], (this.cx - 4) | 0, (this.cy - 5 - this.alt) | 0);
-        return;
+      if (!this.alvo || this.alvo.dead) {             // escolhe o proximo pulo a partir de onde esta
+        this.alvo = this.proximo(g);
+        if (!this.alvo) { this.dead = true; g.particles.burst(this.cx, this.cy, 8, 5, 1.2, 14); return; }
+        this.x0 = this.cx; this.y0 = this.cy; this.t = 0;
       }
       const e = this.alvo;
-      ctx.drawImage(S.bomba[(tick >> 2) & 1], (e.cx - 4) | 0, (e.y - 7) | 0);
-      if (tick & 8) { ctx.fillStyle = '#e33b4e'; ctx.fillRect((e.cx - 1) | 0, (e.y - 4) | 0, 2, 2); }
+      const k = ++this.t / BM_QUICA_VOO;
+      this.x = G.lerp(this.x0, e.cx, k) - 4; this.y = G.lerp(this.y0, e.cy, k) - 4;
+      this.alt = Math.sin(k * Math.PI) * 18;
+      if (this.t < BM_QUICA_VOO) return;
+      this.feitos.add(e);
+      this.alvo = null;
+      const dmg = e instanceof Player ? this.dmgPvp : e.boss ? Math.max(1, Math.ceil(e.maxhp / (e.fracF || 3))) : 999;
+      G.ferirBruto(g, e, dmg, 0, -1, this.dono);
+      g.particles.burst(e.cx, e.cy, 22, 9, 2.4, 22, 2);
+      g.particles.burst(e.cx, e.cy, 8, 1, 1.4, 18);
+      g.shake(6);
+      Sound.play('fire');
+    }
+    draw(ctx, S) {
+      const cx = this.cx | 0, cy = this.cy | 0;
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(cx - 3, cy + 3, 7, 2);
+      ctx.drawImage(S.bomba[(this.anim >> 1) & 1], cx - 4, (cy - 5 - this.alt) | 0);
     }
   }
 
@@ -4240,7 +4831,7 @@
         if (e.dead) continue;
         desencalha(g, e);
         if (e instanceof Player) G.ferirBruto(g, e, PVP_F, 1, 0, this.dono);
-        else if (e.boss) { G.ferirBruto(g, e, Math.max(1, Math.ceil(e.maxhp / 3)), 1, 0, this.dono); chefe = true; }
+        else if (e.boss) { G.ferirBruto(g, e, Math.max(1, Math.ceil(e.maxhp / (e.fracF || 3))), 1, 0, this.dono); chefe = true; }
         else { G.ferirBruto(g, e, 999, 1, 0, this.dono); mortos++; }
         g.particles.burst(e.cx, e.cy, 12, 4, 2, 18);
       }
@@ -4272,6 +4863,595 @@
     }
   }
 
+  /* ================= cronomante ================= */
+
+  // paradoxo (V): marca todos; em 3 s cada um sofre de novo o dobro do dano que levou nesse meio
+  // tempo (no minimo CR_PARADOXO_MIN; no VS no maximo CR_PARADOXO_PVP)
+  class Paradoxo extends Ent {
+    constructor(dono, alvos) {
+      super(0, VIEW_H, 0, 0);
+      this.dono = dono;
+      this.marcas = alvos.map((e) => ({ e, hp0: e.hp }));
+      this.t = CR_PARADOXO_T;
+    }
+    update(g) {
+      if (--this.t > 0) return;
+      this.dead = true;
+      for (const m of this.marcas) {
+        const e = m.e;
+        if (e.dead) continue;
+        let dmg = Math.max(CR_PARADOXO_MIN, Math.max(0, m.hp0 - e.hp) * 2);
+        if (e instanceof Player) dmg = Math.min(dmg, CR_PARADOXO_PVP);
+        G.ferirBruto(g, e, dmg, 0, -1, this.dono);
+        g.particles.burst(e.cx, e.cy, 16, 4, 2, 20);
+      }
+      g.flashT = Math.max(g.flashT, 6);
+      g.shake(6);
+      Sound.play('goldhit');
+    }
+    draw(ctx, S, tick) {
+      const k = 1 - this.t / CR_PARADOXO_T;
+      for (const m of this.marcas) {
+        const e = m.e;
+        if (e.dead) continue;
+        const cx = e.cx, cy = e.y - 8;
+        ctx.fillStyle = (this.t < 40 && (tick & 4)) ? '#ffffff' : '#5ce1ff';
+        for (let a = 0; a < 12; a++) {
+          const an = (a / 12) * Math.PI * 2;
+          ctx.fillRect((cx + Math.cos(an) * 5) | 0, (cy + Math.sin(an) * 5) | 0, 1, 1);
+        }
+        const an = -Math.PI / 2 + k * Math.PI * 2;
+        linhaPx(ctx, cx, cy, cx + Math.cos(an) * 4, cy + Math.sin(an) * 4, '#ffd34d', 0);
+      }
+    }
+  }
+
+  // fim dos tempos (F): o tempo para, um relogio gigante gira e todos envelhecem ate virar po
+  class FimDosTempos extends Ent {
+    constructor(dono) {
+      super(0, VIEW_H, 0, 0);
+      this.dono = dono;
+      this.t = 0;
+    }
+    update(g) {
+      if (++this.t === 1) { g.tempoParado = Math.max(g.tempoParado, CR_FIM_T + 10); g.tempoDono = this.dono; }
+      if (this.t % 12 === 0) Sound.play('menu');      // tique-taque
+      if (this.t < CR_FIM_T) return;
+      this.dead = true;
+      for (const e of g.alvos(this.dono)) {
+        g.particles.burst(e.cx, e.cy, 18, 5, 1.6, 30, 2);
+        golpeFatal(g, e, this.dono);
+      }
+      g.flashT = 16;
+      g.shake(12);
+      Sound.play('nova');
+      g.say('O TEMPO DELES ACABOU!', 80);
+    }
+    draw(ctx, S, tick) {
+      const k = Math.min(1, this.t / 20);
+      ctx.fillStyle = 'rgba(112,86,50,' + (0.35 * k).toFixed(3) + ')';
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+      const cx = VIEW_W / 2, cy = VIEW_H / 2, r = 60;
+      ctx.strokeStyle = 'rgba(255,211,77,' + (0.8 * k).toFixed(2) + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.fillStyle = '#ffd34d';
+      for (let h = 0; h < 12; h++) {
+        const a = (h / 12) * Math.PI * 2;
+        ctx.fillRect((cx + Math.cos(a) * (r - 6)) | 0, (cy + Math.sin(a) * (r - 6)) | 0, 2, 2);
+      }
+      const am = -Math.PI / 2 + this.t * 0.35, ah = -Math.PI / 2 + this.t * 0.03;
+      for (let o = -1; o <= 1; o++) {
+        linhaPx(ctx, cx + o, cy, cx + o + Math.cos(am) * (r - 10), cy + Math.sin(am) * (r - 10), '#fff6d0', 0);
+        linhaPx(ctx, cx + o, cy, cx + o + Math.cos(ah) * (r - 26), cy + Math.sin(ah) * (r - 26), '#ffd34d', 0);
+      }
+    }
+  }
+
+  /* ================= necromante ================= */
+
+  // esqueleto aliado (X): corre ate o alvo mais proximo e golpeia; sem alvos, segue o dono
+  class Lacaio extends Ent {
+    constructor(dono, x, y, dmg) {
+      super(x - 5, y - 5, 10, 10);
+      this.dono = dono; this.dmg = dmg;
+      this.friendly = true;
+      this.t = NC_LACAIO_T; this.cd = 0;
+      this.set = 'skeleton';
+    }
+    some(g) { this.dead = true; g.particles.burst(this.cx, this.cy, 10, 3, 1.4, 18); }
+    anda(g, tx, ty) {
+      const dx = tx - this.cx, dy = ty - this.cy, d = Math.hypot(dx, dy) || 1;
+      G.moveEnt(this, g.room, (dx / d) * NC_LACAIO_SPD, (dy / d) * NC_LACAIO_SPD, false, true);
+      this.dir = dir8(dx, dy);
+      this.anim++;
+    }
+    update(g) {
+      if (--this.t <= 0 || this.dono.dead) { this.some(g); return; }
+      if (this.cd > 0) this.cd--;
+      let alvo = null, bd = Infinity;
+      for (const e of g.alvos(this.dono)) {
+        if (e.dead) continue;
+        const d = G.dist(this.cx, this.cy, e.cx, e.cy);
+        if (d < bd) { bd = d; alvo = e; }
+      }
+      if (!alvo) {
+        if (G.dist(this.cx, this.cy, this.dono.cx, this.dono.cy) > 24) this.anda(g, this.dono.cx, this.dono.cy);
+        return;
+      }
+      if (G.overlap(this.x - 2, this.y - 2, this.w + 4, this.h + 4, alvo.x, alvo.y, alvo.w, alvo.h)) {
+        if (this.cd > 0) return;
+        this.cd = NC_LACAIO_CD;
+        const d = bd || 1;
+        // no VS o oponente leva so 1 por golpe (sao tres esqueletos batendo)
+        G.ferir(g, alvo, alvo instanceof Player ? 1 : this.dmg, (alvo.cx - this.cx) / d, (alvo.cy - this.cy) / d, this.dono);
+        g.particles.burst(alvo.cx, alvo.cy, 6, 3, 1.4, 12);
+        Sound.play('hit');
+        return;
+      }
+      this.anda(g, alvo.cx, alvo.cy);
+    }
+    draw(ctx, S, tick) {
+      if (this.t < 90 && (tick & 4)) return;
+      ctx.fillStyle = 'rgba(127,216,88,0.22)';
+      ctx.fillRect((this.cx - 7) | 0, (this.y + this.h - 1) | 0, 14, 3);
+      Ent.prototype.draw.call(this, ctx, S, tick);
+    }
+  }
+
+  // corrente de almas (C): liga todos os alvos; o dano que um leva vai para todos (em G.ferir)
+  class EloAlmas extends Ent {
+    constructor(dono, alvos) {
+      super(0, VIEW_H, 0, 0);
+      this.dono = dono;
+      this.alvos = new Set(alvos);
+      this.t = NC_ELO_T;
+      this.prop = false;
+    }
+    update(g) {
+      g.elo = this;
+      for (const e of this.alvos) if (e.dead) this.alvos.delete(e);
+      if (--this.t <= 0 || this.alvos.size < 2) { this.dead = true; if (g.elo === this) g.elo = null; }
+    }
+    draw(ctx, S, tick) {
+      if (this.t < 60 && (tick & 4)) return;
+      const l = [...this.alvos];
+      for (let k = 1; k < l.length; k++) {
+        const a = l[k - 1], b = l[k];
+        const n = Math.max(1, Math.ceil(G.dist(a.cx, a.cy, b.cx, b.cy) / 3));
+        for (let s = 0; s <= n; s++) {
+          const t = s / n;
+          ctx.fillStyle = ((s + (tick >> 2)) % 3) ? '#b45cff' : '#7fd858';
+          ctx.fillRect((a.cx + (b.cx - a.cx) * t) | 0, (a.cy + (b.cy - a.cy) * t) | 0, 1, 1);
+        }
+      }
+      ctx.fillStyle = '#b45cff';
+      for (const e of l) ctx.fillRect((e.cx - 1) | 0, (e.y - 4) | 0, 3, 3);
+    }
+  }
+
+  // colheita (V): uma foice gigante corta a sala. Quem esta com pouca vida morre (monstro com metade
+  // ou menos, chefe com 1/4 ou menos); os outros levam 3x o dano. Cada execucao cura meio coracao.
+  // No VS nao executa: o oponente leva 6x o dano com 30% da vida ou menos, senao 3x
+  class Colheita extends Ent {
+    constructor(dono) {
+      super(0, VIEW_H, 0, 0);
+      this.dono = dono;
+      this.t = 0;
+    }
+    update(g) {
+      this.t++;
+      if (this.t === NC_COLHEITA_GOLPE) {
+        const d = this.dono, dmg = d.dano() * NC_COLHEITA_MULT;
+        let execs = 0;
+        for (const e of g.alvos(d)) {
+          if (e.dead) continue;
+          if (e instanceof Player) {
+            G.ferirBruto(g, e, e.hp <= e.maxhp * 0.3 ? dmg * 2 : dmg, 0, -1, d);
+            continue;
+          }
+          const exec = e.boss ? e.hp <= e.maxhp / 4 : e.hp <= e.maxhp / 2;
+          if (exec) {
+            G.ferirBruto(g, e, e.boss ? e.hp : 999, 0, -1, d);
+            execs++;
+            g.particles.burst(e.cx, e.cy, 18, 8, 2, 24, 2);
+          } else {
+            G.ferir(g, e, dmg, 0, -1, d);
+          }
+        }
+        if (execs) { d.heal(execs); g.say('EXECUTADOS: ' + execs, 60); }
+        g.shake(8);
+        Sound.play('nova');
+      }
+      if (this.t >= 30) this.dead = true;
+    }
+    draw(ctx) {
+      // lamina varrendo a sala em arco, da esquerda para a direita
+      const k = Math.min(1, this.t / 24), cx = VIEW_W / 2, cy = VIEW_H + 40;
+      for (let e = 0; e < 4; e++) {
+        const ang = Math.PI + (k - e * 0.05) * Math.PI;
+        ctx.globalAlpha = 1 - e * 0.25;
+        ctx.fillStyle = e === 0 ? '#eef2ff' : '#b45cff';
+        for (let r = 60; r < 260; r += 2) {
+          ctx.fillRect((cx + Math.cos(ang) * r) | 0, (cy + Math.sin(ang) * r) | 0, 2, 2);
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // portal do submundo (F): um poco escuro abre sob cada alvo, maos sobem e arrastam todos
+  class Submundo extends Ent {
+    constructor(dono, alvos) {
+      super(0, VIEW_H, 0, 0);
+      this.dono = dono; this.alvos = alvos;
+      this.t = 0;
+    }
+    update(g) {
+      this.t++;
+      for (const e of this.alvos) if (!e.dead) e.raiz = Math.max(e.raiz || 0, 2);   // presos no lugar
+      if (this.t % 10 === 0) Sound.play('hit');
+      if (this.t < NC_SUB_T) return;
+      this.dead = true;
+      for (const e of this.alvos) {
+        if (e.dead) continue;
+        g.particles.burst(e.cx, e.cy + 4, 16, 8, 1.8, 24, 2);
+        golpeFatal(g, e, this.dono);
+      }
+      g.shake(10);
+      Sound.play('nova');
+      g.say('LEVADOS PARA O SUBMUNDO!', 80);
+    }
+    draw(ctx, S, tick) {
+      const k = Math.min(1, this.t / 20), m = Math.max(0, (this.t - 20) / (NC_SUB_T - 20));
+      for (const e of this.alvos) {
+        if (e.dead) continue;
+        const cx = e.cx, cy = e.y + e.h;
+        const r = 4 + 8 * k;
+        ctx.fillStyle = 'rgba(28,24,36,0.85)';
+        ctx.fillRect((cx - r) | 0, (cy - 2) | 0, (r * 2) | 0, 4);
+        ctx.fillStyle = '#b45cff';
+        ctx.fillRect((cx - r) | 0, (cy - 2) | 0, (r * 2) | 0, 1);
+        const h = (10 * m) | 0;
+        ctx.fillStyle = '#8aa87a';
+        for (const o of [-6, 5]) {
+          ctx.fillRect((cx + o) | 0, cy - h, 2, h);
+          ctx.fillRect((cx + o - 1) | 0, cy - h - 1, 4, 2);
+        }
+      }
+    }
+  }
+
+  /* ================= engenheiro ================= */
+
+  // torreta (X): mira e atira no alvo mais proximo por 20 s
+  class Torreta extends Ent {
+    constructor(dono, x, y, dmg) {
+      super(x - 5, y - 4, 10, 8);
+      this.dono = dono; this.dmg = dmg;
+      this.friendly = true;
+      this.t = EN_TORRETA_T; this.cd = EN_TORRETA_CD;
+      this.ang = Math.atan2(DIR_VEC[dono.dir][1], DIR_VEC[dono.dir][0]);
+    }
+    some(g) { this.dead = true; g.particles.burst(this.cx, this.cy, 10, 5, 1.4, 16); }
+    update(g) {
+      if (--this.t <= 0) { this.some(g); return; }
+      let alvo = null, bd = EN_TORRETA_ALC;
+      for (const e of g.alvos(this.dono)) {
+        if (e.dead) continue;
+        const d = G.dist(this.cx, this.cy, e.cx, e.cy);
+        if (d < bd) { bd = d; alvo = e; }
+      }
+      if (this.cd > 0) this.cd--;
+      if (!alvo) return;
+      this.ang = Math.atan2(alvo.cy - (this.cy - 3), alvo.cx - this.cx);
+      if (this.cd > 0) return;
+      this.cd = EN_TORRETA_CD;
+      const mx = this.cx + Math.cos(this.ang) * 7, my = this.cy - 3 + Math.sin(this.ang) * 7;
+      const sh = new Shot(mx - 2, my - 2, Math.cos(this.ang) * 3.6, Math.sin(this.ang) * 3.6, 'prego', this.dmg);
+      sh.friendly = true; sh.dono = this.dono; sh.life = 120;
+      sh.fonte = this.fonte;                     // tiro da torreta conta como do X que a criou
+      g.ents.push(sh);
+      g.particles.spawn(mx, my, 0, 0, 6, 1, 1, 0);
+      Sound.play('shoot');
+    }
+    draw(ctx, S, tick) {
+      if (this.t < 120 && (tick & 4)) return;
+      const x = this.x | 0, y = this.y | 0;
+      ctx.fillStyle = '#2f3644'; ctx.fillRect(x, y + 4, 10, 4);
+      ctx.fillStyle = '#5c667e'; ctx.fillRect(x + 2, y, 6, 5);
+      linhaPx(ctx, this.cx, this.cy - 3, this.cx + Math.cos(this.ang) * 7, this.cy - 3 + Math.sin(this.ang) * 7, '#c8cede', 0);
+      ctx.fillStyle = (tick & 16) ? '#7fd858' : '#3a4a2a';
+      ctx.fillRect(x + 4, y + 1, 2, 1);
+    }
+  }
+
+  // campo refletor (C): tiros inimigos que chegam perto voltam no alvo mais proximo, com o dobro do dano
+  class CampoRefletor extends Ent {
+    constructor(dono) {
+      super(dono.x, dono.y, 0, 0);
+      this.dono = dono;
+      this.t = EN_REFLETOR_T;
+    }
+    update(g) {
+      const d = this.dono;
+      if (--this.t <= 0 || d.dead) { this.dead = true; return; }
+      this.x = d.x; this.y = d.y + 2;
+      for (const s of g.ents) {
+        if (!s.shot || s.friendly || s.dead || s.vx === undefined) continue;
+        if (G.dist(s.cx, s.cy, d.cx, d.cy) > EN_REFLETOR_R) continue;
+        const vel = (Math.hypot(s.vx, s.vy) || 2) * 1.4;
+        let alvo = null, bd = Infinity;
+        for (const e of g.alvos(d)) {
+          if (e.dead) continue;
+          const dd = G.dist(s.cx, s.cy, e.cx, e.cy);
+          if (dd < bd) { bd = dd; alvo = e; }
+        }
+        const a = alvo ? Math.atan2(alvo.cy - s.cy, alvo.cx - s.cx) : Math.atan2(s.cy - d.cy, s.cx - d.cx);
+        s.vx = Math.cos(a) * vel; s.vy = Math.sin(a) * vel;
+        s.friendly = true; s.dono = d; s.dmg = (s.dmg || 1) * 2;
+        if (s.life !== undefined) s.life = 200;
+        g.particles.burst(s.cx, s.cy, 6, 1, 1.4, 12);
+        Sound.play('goldhit');
+      }
+    }
+    draw(ctx, S, tick) {
+      if (this.t < 90 && (tick & 4)) return;
+      const d = this.dono;
+      for (let k = 0; k < 18; k++) {
+        const a = (k / 18) * Math.PI * 2 + tick * 0.04;
+        ctx.fillStyle = (k + (tick >> 3)) % 3 ? '#ffd34d' : '#ffffff';
+        ctx.fillRect((d.cx + Math.cos(a) * EN_REFLETOR_R) | 0, (d.cy - 2 + Math.sin(a) * EN_REFLETOR_R * 0.8) | 0, 2, 1);
+      }
+    }
+  }
+
+  // enxame de drones (F): sobem em volta do engenheiro e mergulham, um em cada alvo
+  class EnxameDrones extends Ent {
+    constructor(dono, alvos) {
+      super(0, VIEW_H, 0, 0);
+      this.dono = dono;
+      this.t = 0;
+      const n = Math.max(6, alvos.length);
+      this.drones = [];
+      for (let k = 0; k < n; k++) {
+        this.drones.push({ x: dono.cx, y: dono.cy, ang: (k / n) * Math.PI * 2, alvo: alvos[k] || null, vivo: true });
+      }
+    }
+    update(g) {
+      this.t++;
+      const d = this.dono;
+      let vivos = 0;
+      for (const dr of this.drones) {
+        if (!dr.vivo) continue;
+        vivos++;
+        if (this.t < EN_DRONE_SOBE) {
+          dr.ang += 0.12;
+          const r = 10 + this.t * 0.6;
+          dr.x = d.cx + Math.cos(dr.ang) * r;
+          dr.y = d.cy - 6 + Math.sin(dr.ang) * r * 0.6 - this.t * 0.3;
+          continue;
+        }
+        if (!dr.alvo || dr.alvo.dead) {            // sem alvo: vai embora pelo alto
+          dr.y -= 4;
+          if (dr.y < -10) dr.vivo = false;
+          continue;
+        }
+        const e = dr.alvo, dx = e.cx - dr.x, dy = e.cy - dr.y, dist = Math.hypot(dx, dy);
+        if (dist > EN_DRONE_SPD) { dr.x += (dx / dist) * EN_DRONE_SPD; dr.y += (dy / dist) * EN_DRONE_SPD; continue; }
+        dr.vivo = false;
+        g.particles.burst(e.cx, e.cy, 22, 9, 2.4, 22, 2);
+        g.shake(5);
+        Sound.play('fire');
+        golpeFatal(g, e, d);
+      }
+      if (!vivos) this.dead = true;
+    }
+    draw(ctx, S, tick) {
+      for (const dr of this.drones) {
+        if (!dr.vivo) continue;
+        const x = dr.x | 0, y = dr.y | 0;
+        ctx.fillStyle = '#5c667e'; ctx.fillRect(x - 2, y - 1, 5, 3);
+        ctx.fillStyle = (tick & 2) ? '#c8cede' : '#8f96a8';
+        ctx.fillRect(x - 4, y - 2, 3, 1); ctx.fillRect(x + 2, y - 2, 3, 1);
+        ctx.fillStyle = '#e33b4e'; ctx.fillRect(x, y, 1, 1);
+      }
+    }
+  }
+
+  /* ================= druida ================= */
+
+  // bosque sagrado (V): chao florido por 10 s; cura quem esta dentro e prende e fere os alvos
+  class Bosque extends Ent {
+    constructor(dono, x, y) {
+      super(0, 0, 0, 0);                        // no chao: desenhado antes de todos
+      this.dono = dono; this.ox = x; this.oy = y;
+      this.t = DR_BOSQUE_T;
+      this.flores = [];
+      for (let k = 0; k < 26; k++) {
+        const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * (DR_BOSQUE_R - 4);
+        this.flores.push([x + Math.cos(a) * r, y + Math.sin(a) * r * 0.7, (Math.random() * 3) | 0]);
+      }
+    }
+    dentro(e) {
+      const dx = e.cx - this.ox, dy = (e.cy - this.oy) / 0.7;
+      return dx * dx + dy * dy <= DR_BOSQUE_R * DR_BOSQUE_R;
+    }
+    update(g) {
+      if (--this.t <= 0) { this.dead = true; return; }
+      const passou = DR_BOSQUE_T - this.t;
+      if (passou % DR_BOSQUE_CURA === 0) {
+        const amigos = g.modo() === 'vs' ? [this.dono] : g.players;
+        for (const p of amigos) {
+          if (p.dead || !this.dentro(p) || p.hp >= p.maxhp) continue;
+          p.heal(1);
+          g.particles.burst(p.cx, p.cy - 4, 6, 3, 1, 16);
+        }
+      }
+      const alvos = g.alvos(this.dono);
+      for (const e of alvos) {
+        if (e.dead || !this.dentro(e)) continue;
+        e.raiz = Math.max(e.raiz || 0, 4);          // presos enquanto estiverem no bosque
+        if (passou % 60 === 0) danoDireto(g, e, 1, this.dono);
+      }
+      if ((g.tick & 3) === 0) {
+        const a = Math.random() * Math.PI * 2, r = Math.random() * DR_BOSQUE_R;
+        g.particles.spawn(this.ox + Math.cos(a) * r, this.oy + Math.sin(a) * r * 0.7, 0, -0.4, 20, 3, 1, 0);
+      }
+    }
+    draw(ctx, S, tick) {
+      if (this.t < 90 && (tick & 4)) return;
+      ctx.fillStyle = 'rgba(79,170,60,0.28)';
+      ctx.beginPath();
+      ctx.ellipse(this.ox, this.oy, DR_BOSQUE_R, DR_BOSQUE_R * 0.7, 0, 0, Math.PI * 2);
+      ctx.fill();
+      const cores = ['#ffd34d', '#ff8090', '#ffffff'];
+      for (const [x, y, c] of this.flores) {
+        ctx.fillStyle = '#3f8a2a'; ctx.fillRect(x | 0, (y + 1) | 0, 1, 2);
+        ctx.fillStyle = cores[c]; ctx.fillRect((x - 1) | 0, y | 0, 3, 1); ctx.fillRect(x | 0, (y - 1) | 0, 1, 3);
+      }
+    }
+  }
+
+  // furia da floresta (F): raizes com espinhos brotam sob cada alvo e o atravessam
+  class FuriaFloresta extends Ent {
+    constructor(dono, alvos) {
+      super(0, VIEW_H, 0, 0);
+      this.dono = dono; this.alvos = alvos;
+      this.t = 0;
+    }
+    update(g) {
+      this.t++;
+      for (const e of this.alvos) if (!e.dead) e.raiz = Math.max(e.raiz || 0, 2);
+      if (this.t % 8 === 0) Sound.play('hit');
+      if (this.t < DR_FURIA_T) return;
+      this.dead = true;
+      for (const e of this.alvos) {
+        if (e.dead) continue;
+        g.particles.burst(e.cx, e.cy, 16, 3, 2, 24, 2);
+        golpeFatal(g, e, this.dono);
+      }
+      g.shake(10);
+      Sound.play('nova');
+      g.say('A FLORESTA SE VINGOU!', 80);
+    }
+    draw(ctx) {
+      const k = Math.min(1, this.t / (DR_FURIA_T - 10));
+      for (const e of this.alvos) {
+        if (e.dead) continue;
+        const cx = e.cx, cy = e.y + e.h;
+        for (let r = -2; r <= 2; r++) {             // cinco raizes pontudas subindo
+          const h = ((8 + (2 - Math.abs(r)) * 5) * k) | 0;
+          ctx.fillStyle = '#4a3018';
+          ctx.fillRect((cx + r * 4 - 1) | 0, cy - h, 3, h);
+          ctx.fillStyle = '#7fd858';
+          ctx.fillRect((cx + r * 4) | 0, cy - h - 2, 1, 2);
+        }
+      }
+    }
+  }
+
+  /* ================= vampira ================= */
+
+  // lanca de sangue (X): atravessa paredes e todos os alvos ate a borda da sala
+  class LancaSangue extends Ent {
+    constructor(x, y, dx, dy, dmg) {
+      super(x - 3, y - 3, 6, 6);
+      this.vx = dx * VP_LANCA_SPD; this.vy = dy * VP_LANCA_SPD; this.dmg = dmg;
+      this.friendly = true; this.shot = true;
+      this.atingidos = new Set();
+    }
+    update(g) {
+      this.x += this.vx; this.y += this.vy;
+      if (this.x < -12 || this.y < -12 || this.x > VIEW_W + 12 || this.y > VIEW_H + 12) { this.dead = true; return; }
+      if ((g.tick & 1) === 0) g.particles.spawn(this.cx, this.cy, 0, 0.3, 12, 2, 1, 0);
+      for (const e of g.alvos(this.dono)) {
+        if (e.dead || this.atingidos.has(e) || !this.hits(e)) continue;
+        this.atingidos.add(e);
+        G.ferir(g, e, this.dmg, this.vx / VP_LANCA_SPD, this.vy / VP_LANCA_SPD, this.dono);
+        g.particles.burst(e.cx, e.cy, 10, 2, 1.8, 16);
+      }
+    }
+    draw(ctx) {
+      const n = VP_LANCA_SPD, ux = this.vx / n, uy = this.vy / n;
+      linhaPx(ctx, this.cx - ux * 12, this.cy - uy * 12, this.cx, this.cy, '#6b1720', 1);
+      linhaPx(ctx, this.cx - ux * 12, this.cy - uy * 12, this.cx, this.cy, '#e33b4e', 0);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect((this.cx + ux) | 0, (this.cy + uy) | 0, 1, 1);
+    }
+  }
+
+  // banquete (V): fios de sangue ligam todos a vampira; cada um leva 3x o dano e a cura
+  class Banquete extends Ent {
+    constructor(dono, alvos, dmg) {
+      super(0, VIEW_H, 0, 0);
+      this.dono = dono; this.dmg = dmg;
+      this.pts = alvos.map((e) => [e.cx, e.cy]);
+      this.alvos = alvos;
+      this.t = 0;
+    }
+    update(g) {
+      if (++this.t === 1) {
+        let cura = 0;
+        for (const e of this.alvos) {
+          if (e.dead) continue;
+          G.ferirBruto(g, e, this.dmg, 0, -1, this.dono);
+          cura++;
+        }
+        this.dono.heal(Math.min(VP_BANQUETE_CURA, cura));
+        g.shake(6);
+      }
+      if (this.t >= 40) this.dead = true;
+    }
+    draw(ctx, S, tick) {
+      const d = this.dono;
+      for (let k = 0; k < this.pts.length; k++) {
+        const [x, y] = this.pts[k];
+        linhaPx(ctx, x, y, d.cx, d.cy, 'rgba(227,59,78,0.5)', 0);
+        for (let s = 0; s < 3; s++) {                // gotas correndo ate a vampira
+          const t = ((tick * 0.04 + s / 3 + k * 0.17) % 1);
+          ctx.fillStyle = '#e33b4e';
+          ctx.fillRect((x + (d.cx - x) * t - 1) | 0, (y + (d.cy - y) * t - 1) | 0, 2, 2);
+        }
+      }
+    }
+  }
+
+  // lua de sangue (F): a sala fica vermelha, todos sao drenados e a vampira volta com a vida cheia
+  class LuaSangue extends Ent {
+    constructor(dono) {
+      super(0, VIEW_H, 0, 0);
+      this.dono = dono;
+      this.t = 0;
+    }
+    update(g) {
+      this.t++;
+      if ((this.t & 1) === 0) g.particles.spawn(Math.random() * VIEW_W, 0, 0, 1.2, 60, 2, 1, 0);
+      if (this.t === VP_LUA_T) {
+        for (const e of g.alvos(this.dono)) {
+          g.particles.burst(e.cx, e.cy, 16, 2, 2, 24, 2);
+          golpeFatal(g, e, this.dono);
+        }
+        this.dono.hp = this.dono.maxhp;
+        g.flashT = 12;
+        g.shake(10);
+        Sound.play('nova');
+        g.say('LUA DE SANGUE!', 80);
+      }
+      if (this.t >= VP_LUA_T + 30) this.dead = true;
+    }
+    draw(ctx) {
+      const k = Math.min(1, this.t / 30) * (this.t > VP_LUA_T ? Math.max(0, 1 - (this.t - VP_LUA_T) / 30) : 1);
+      ctx.fillStyle = 'rgba(120,10,24,' + (0.35 * k).toFixed(3) + ')';
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+      ctx.fillStyle = 'rgba(227,59,78,' + (0.9 * k).toFixed(3) + ')';
+      ctx.beginPath(); ctx.arc(VIEW_W / 2, 28, 18, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,128,144,' + (0.6 * k).toFixed(3) + ')';
+      ctx.beginPath(); ctx.arc(VIEW_W / 2 - 5, 24, 6, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
   /* ================= itens ================= */
 
   const PICK_W = { coin: 8, gem: 8, heart: 8, key: 8, container: 16, shard: 14 };
@@ -4298,7 +5478,7 @@
       if (--this.life <= 0) { this.dead = true; return; }
       const p = g.alvo(this);
       const d = G.dist(this.cx, this.cy, p.cx, p.cy);
-      if (d < 26 && this.pop <= 0) {
+      if (d < (this.valor ? 40 : 26) && this.pop <= 0) {      // moedas de monstro atraem de mais longe
         const a = Math.atan2(p.cy - this.cy, p.cx - this.cx);
         const s = 1.6;
         this.x += Math.cos(a) * s; this.y += Math.sin(a) * s;
@@ -4321,6 +5501,7 @@
     }
   }
   G.Pickup = Pickup;
+
 
   class Chest extends Ent {
     constructor(tx, ty, item, needClear) {
@@ -4381,7 +5562,13 @@
       case 'hidra': return new Hidra(x, y);
       case 'cavnegro': return new CavaleiroNegro(x, y);
       case 'reisombrio': return new ReiSombrio(x, y);
-      default: return new Goblin(x, y);
+      default: return G.CHEFES && G.CHEFES[type] ? new G.CHEFES[type](x, y) : new Goblin(x, y);
     }
   };
+  // usados pelos chefes da campanha (chefes.js)
+  G.Marca = Marca;
+  G.OndaInimiga = OndaInimiga;
+  G.linhaPx = linhaPx;
+  G.desenhaEfeito = desenhaEfeito;
+  G.dirFrom = dirFrom;
 })(window.AURUM = window.AURUM || {});

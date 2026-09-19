@@ -4,9 +4,10 @@
 
   const TILE = G.TILE, ROOM_W = G.ROOM_W, ROOM_H = G.ROOM_H;
   const VIEW_W = G.VIEW_W, VIEW_H = G.VIEW_H, HUD_H = G.HUD_H;
+  const SEL_COLUNAS = 6;                 // tela de selecao: herois por linha
   const Sound = G.Sound, Music = G.Music;
   const STEP = 1000 / 60;
-  const SAVE_KEY = 'aurum_save_v1';
+  const SAVE_KEY = 'aurum_save_v2';   // v2: campanha dos fragmentos (3 mundos)
 
   const DIR_VEC = G.DIR_VEC;   // 8 direcoes, definido em entities.js
   const Net = G.Net;
@@ -29,6 +30,20 @@
   const COR_P = ['#ffd34d', '#5ce1ff'];  // marcador do jogador 1 e 2
   const BRANCO_CHEIO = 24, BRANCO_FADE = 72;   // meteoro: quadros de branco total e de fade
   const GAP_X = G.GAP_X, GAP_Y = G.GAP_Y;   // aberturas das salas (world.js)
+  const FRAGMENTOS = 6;                   // 2 guardioes por mundo, 3 mundos
+  const MOEDAS_POR_MOB = 15;              // cada monstro comum explode em moedas que somam 15
+  const MOEDAS_PECAS = 5;                 // ... em 5 moedas de 3
+  // dificuldade: vida dos inimigos e chefes e dano que o heroi leva
+  const DIFICULDADES = [
+  // vida: monstros comuns; chefeVida: chefes; ritmo: velocidade dos chefes; tiros: quantidade de ataques dos chefes
+    { nome: 'FACIL', cor: '#7fd858', vida: 0.7, chefeVida: 0.5, dano: 0.5, ritmo: 0.75, tiros: 0.6, dicas: true,
+      desc: ['CHEFES COM METADE DA VIDA, MAIS LENTOS E COM MENOS TIROS', 'INIMIGOS COM 30% MENOS VIDA', 'VOCE LEVA METADE DO DANO (CHEFES: 1 CORACAO)', 'PEDRA DE DICAS NOS PUZZLES'] },
+    { nome: 'MEDIO', cor: '#ffd34d', vida: 1, chefeVida: 1, dano: 1, ritmo: 1, tiros: 1,
+      desc: ['O JOGO COMO FOI PENSADO', 'CHEFES TIRAM 1 CORACAO E MEIO'] },
+    { nome: 'DIFICIL', cor: '#e33b4e', vida: 1.4, chefeVida: 1.5, dano: 1.5, ritmo: 1.2, tiros: 1.35,
+      desc: ['CHEFES COM 50% MAIS VIDA, MAIS RAPIDOS E COM MAIS TIROS', 'INIMIGOS COM 40% MAIS VIDA', 'VOCE LEVA 50% MAIS DANO (CHEFES: 2 CORACOES E MEIO)'] }
+  ];
+  const DIF_KEY = 'aurum_dificuldade';
 
   class Game {
     constructor(canvas) {
@@ -48,6 +63,8 @@
       this.tick = 0;
       this.state = 'title';
       this.shakeT = 0; this.shakeAmp = 0; this.flashT = 0; this.cdPulse = 0;
+      this.tempoParado = 0; this.tempoDono = null;   // cronomante: tempo parado (so o dono age)
+      this.elo = null;                 // necromante: corrente de almas ativa
       this.brancoT = 0;                // meteoro do mago: tela branca que volta com fade
       this.msg = null; this.msgT = 0;
       this.fade = 0; this.fadeDir = 0; this.onFade = null;
@@ -69,6 +86,8 @@
       this.streamCtx.imageSmoothingEnabled = false;
 
       this.hasSave = !!G.store.get(SAVE_KEY);
+      const dif = parseInt(G.store.get(DIF_KEY), 10);
+      this.difIdx = DIFICULDADES[dif] ? dif : 1;
       this.acc = 0;
       this.last = performance.now();
       this.loop = this.loop.bind(this);
@@ -82,14 +101,8 @@
       this.cls = G.CLASSES[cls] ? cls : (this.cls || 'guerreiro');
       const vs = this.modo() === 'vs';
       // VS: so a arena escolhida, uma sala fechada
-      this.levels = vs ? { arena: G.genArena(this.seed, this.mp.arena) } : {
-        overworld: G.genOverworld(this.seed),
-        dungeon0: G.genDungeon(this.seed, 0),
-        dungeon1: G.genDungeon(this.seed, 1),
-        pantano: G.genPantano(this.seed),
-        castelo: G.genDungeon(this.seed, 2)
-      };
-      this.flags = { chests: {}, bosses: {}, cleared: {}, unlocked: {} };
+      this.levels = vs ? { arena: G.genArena(this.seed, this.mp.arena) } : this.geraMundos(this.seed);
+      this.flags = { chests: {}, bosses: {}, cleared: {}, unlocked: {}, puzzles: {} };
       this.player = new G.Player(0, 0, this.cls);
       this.players = [this.player];
       this.player2 = null;
@@ -104,16 +117,87 @@
       this.tempo = this.modo() === 'comp' ? COMP_TEMPO : 0;
       this.spawnT = COMP_SPAWN;
       this.vencedor = null;
-      const id = vs ? 'arena' : 'overworld', ini = this.levels[id].start;
+      const id = vs ? 'arena' : 'mundo1', ini = this.levels[id].start;
       this.enterLevel(id, ini.room, ini.x, ini.y);
       this.state = 'play';
       if (vs) this.montaArena();
       const m = this.modo();
-      this.say(m === 'vs' ? 'VS! ' + this.level.name.replace('ARENA - ', '') + '\nDANO NO OPONENTE LIBERA X, C E V' : m === 'comp' ? 'COMPETITIVO: 3 MINUTOS!'
-        : m === 'coop' ? 'COOPERATIVO' : this.player.def.nome + ' DE AURUM\nCHEFES E CAVERNAS ESTAO NO MAPA (ESC)', 200);
+      if (m === 'vs' || m === 'comp') {
+        this.say(m === 'vs' ? 'VS! ' + this.level.name.replace('ARENA - ', '') + '\nDANO NO OPONENTE LIBERA X, C E V' : 'COMPETITIVO: 3 MINUTOS!', 200);
+        return;
+      }
+      this.flags.checkpoint = { level: id, room: ini.room, x: ini.x, y: ini.y };
+      // solo e cooperativo: abertura contando a historia (ENTER pula)
+      this.contaHistoria(G.CENAS_INTRO, () => {
+        this.state = 'play';
+        Music.set(this.level.music);
+        this.say((m === 'coop' ? 'COOPERATIVO\n' : '') + this.level.name + '\n' + this.level.sub, 220);
+      });
+    }
+
+    geraMundos(seed) {
+      return { mundo1: G.genMundo(seed, 1), mundo2: G.genMundo(seed, 2), mundo3: G.genMundo(seed, 3) };
+    }
+
+    contaHistoria(cenas, depois) {
+      this.historia = new G.Historia(this, cenas, () => { this.historia = null; depois(); });
+      this.state = 'historia';
+      Music.set('historia');
+    }
+
+    /* ---------------- batalha estilo Undertale (Eco das Fendas) ---------------- */
+
+    iniciaBatalha(chefe) {
+      this.batalha = new G.Batalha(this, chefe);
+      this.state = 'batalha';
+      this.flashT = 10;
+      Sound.play('boss');
+      Music.set('boss');
+    }
+
+    fimBatalha(b, res) {
+      this.batalha = null;
+      this.state = 'play';
+      const e = b.chefe;
+      e.hp = 0;
+      e.die(this);                            // conta como chefe derrotado: fragmento e sala liberada
+      if (res === 'poupou') {
+        this.spawnPickup(e.cx + 16, e.cy, 'container');
+        this.say('VOCE POUPOU O ECO. ELE ENCONTROU PAZ.\nFICOU UM FRAGMENTO E UM CORACAO EXTRA.', 220);
+      }
+    }
+
+    morteNaBatalha(b) {
+      this.batalha = null;
+      this.state = 'play';
+      b.chefe.iniciou = false; b.chefe.t = 0;   // no cooperativo a luta recomeca quando ele voltar
+      const p = this.player;
+      p.dead = true;
+      this.onPlayerDead(p);
     }
 
     modo() { return this.mp && this.mp.papel === 'host' ? this.mp.modo : null; }
+
+    dif() { return this.modo() === 'vs' ? DIFICULDADES[1] : DIFICULDADES[this.difIdx]; }
+
+    trocaDificuldade(passo) {
+      this.difIdx = (this.difIdx + passo + DIFICULDADES.length) % DIFICULDADES.length;
+      G.store.set(DIF_KEY, String(this.difIdx));
+      Sound.play('menu');
+    }
+
+    // dano que um monstro causa no heroi, ajustado pela dificuldade (minimo 1)
+    danoRecebido(d) { const m = this.dif().dano; return m === 1 ? d : Math.max(1, Math.round(d * m)); }
+
+    // vida do monstro ajustada pela dificuldade (uma vez so, ao nascer)
+    escala(e) {
+      if (!e.enemy || e.escalado) return;
+      e.escalado = true;
+      const m = e.boss ? this.dif().chefeVida : this.dif().vida;
+      if (m === 1) return;
+      e.maxhp = Math.max(1, Math.round(e.maxhp * m));
+      e.hp = e.maxhp;
+    }
 
     // VS: arena sem monstros, cada um de um lado
     montaArena() {
@@ -163,15 +247,24 @@
       this.roomIdx = idx;
       this.room = this.level.rooms[idx];
       this.room.visited = true;
+      if (this.flags && this.level && this.level.mundo) {         // lembra as salas visitadas (teleporte)
+        const v = (this.flags.visitadas = this.flags.visitadas || {});
+        const lista = (v[this.levelId] = v[this.levelId] || []);
+        if (lista.indexOf(idx) < 0) lista.push(idx);
+      }
       this.ents.length = 0;
       this.particles.clear();
       this.boss = null;
+      this.tempoParado = 0; this.elo = null;
+      // sala que o chefe deforma (arena que encolhe): volta ao chao original
+      if (this.room.meta.orig) { this.room.tiles.set(this.room.meta.orig); this.room.dirty = true; }
 
       const respawn = (this.level.kind === 'field' || !this.room.cleared) && this.modo() !== 'vs';
       if (respawn) {
         for (const s of this.room.spawns) {
           const e = G.spawnEnemy(s.type, s.x, s.y);
           if (e.boss && this.room.cleared) continue;
+          this.escala(e);
           this.ents.push(e);
           if (e.boss) this.boss = e;
         }
@@ -183,7 +276,7 @@
           const c = new G.Chest(o.tx, o.ty, o.item, o.needClear);
           c.id = id;
           this.ents.push(c);
-        }
+        } else if (G.OBJETOS[o.kind]) this.ents.push(G.OBJETOS[o.kind](o, this, idx));   // placas, fonte, lampioes, puzzle
       }
 
       if (this.boss && !this.room.cleared) {
@@ -205,6 +298,8 @@
 
     addEnt(e) {
       if (this.donoAtual && e.dono === undefined) e.dono = this.donoAtual;   // tiros do jogador
+      if (e.fonte === undefined && this.fonteDano) e.fonte = this.fonteDano;  // criado por um especial (X, C ou V)
+      this.escala(e);                    // monstros invocados no meio da luta
       this.ents.push(e);
       if (e.boss) this.boss = e;
     }
@@ -234,17 +329,23 @@
 
     spawnPickup(x, y, kind) { this.ents.push(new G.Pickup(x, y, kind)); }
 
+    // o monstro explode em moedas que voam para os lados e caem no chao; as vezes cai um coracao
     dropLoot(e) {
-      const r = Math.random();
-      if (r < 0.40) this.spawnPickup(e.cx, e.cy, 'coin');
-      else if (r < 0.58) this.spawnPickup(e.cx, e.cy, 'heart');
-      else if (r < 0.66) this.spawnPickup(e.cx, e.cy, 'gem');
-      if (e.loot > 1 && Math.random() < 0.5) this.spawnPickup(e.cx + 6, e.cy, 'coin');
+      const a0 = Math.random() * Math.PI * 2;
+      for (let k = 0; k < MOEDAS_PECAS; k++) {
+        const pk = new G.Pickup(e.cx, e.cy, 'coin');
+        const a = a0 + (k / MOEDAS_PECAS) * Math.PI * 2 + (Math.random() - 0.5) * 0.5, v = 1.3 + Math.random() * 1.2;
+        pk.vx = Math.cos(a) * v; pk.vy = Math.sin(a) * v - 1.6;   // arco para cima e para os lados
+        pk.pop = 18;
+        pk.valor = MOEDAS_POR_MOB / MOEDAS_PECAS;
+        this.ents.push(pk);
+      }
+      if (Math.random() < 0.18) this.spawnPickup(e.cx, e.cy, 'heart');
     }
 
     onEnemyDeath(e) {
       const quem = this.players.indexOf(e.ultimoDono) >= 0 ? e.ultimoDono : this.player;
-      if (quem.abateu() && quem === this.player) this.cdPulse = 10;   // abate adianta as recargas
+      if (quem.abateu(this.fonteDano) && quem === this.player) this.cdPulse = 10;   // abate adianta as recargas (menos a do especial que matou)
       if (this.modo() === 'comp') quem.abates++;
 
       if (e.boss) {
@@ -283,7 +384,7 @@
     collect(p, quem) {
       quem = quem || this.player;
       switch (p.kind) {
-        case 'coin': quem.coins += 1; Sound.play('coin'); break;
+        case 'coin': quem.coins += p.valor || 1; Sound.play('coin'); break;
         case 'gem': quem.coins += 5; Sound.play('coin'); break;
         case 'heart': quem.heal(2); Sound.play('heal'); break;
         case 'key': this.player.keys += 1; Sound.play('key'); this.say('CHAVE DA MASMORRA'); break;
@@ -296,16 +397,15 @@
       this.particles.burst(p.cx, p.cy, 6, 1, 1.4, 14);
     }
 
+    // 6 fragmentos (2 por mundo); a cada 2, o poder das armas sobe um nivel
     giveShard() {
-      this.player.shards += 1;
+      const p = this.player;
+      p.shards += 1;
+      const nivel = 1 + Math.floor(p.shards / 2);
+      for (const o of this.players) o.sword = Math.max(o.sword, nivel);
       Sound.play('secret');
-      if (this.player.shards === 1) {
-        for (const p of this.players) p.sword = 2;
-        this.say('FRAGMENTO 1/2 - ' + this.player.def.arma + ' DE OURO! DANO DOBRADO', 220);
-      } else {
-        this.say('OS 2 FRAGMENTOS SAO SEUS!', 200);
-        this.fadeTo(() => { this.state = 'win'; Music.set('win'); });
-      }
+      this.say('FRAGMENTO DO MUNDO ' + p.shards + '/' + FRAGMENTOS + ' RESGATADO!' +
+        (p.shards % 2 === 0 ? '\n' + p.def.arma + ' MAIS FORTE: PODER x' + nivel : ''), 220);
       this.save();
     }
 
@@ -353,7 +453,7 @@
           done.add(e);
           const a = Math.atan2(e.cy - y, e.cx - x);
           if (e.boss) {
-            base.call(e, this, Math.max(1, Math.ceil(e.maxhp / 3)), Math.cos(a), Math.sin(a));
+            base.call(e, this, Math.max(1, Math.ceil(e.maxhp / (e.fracF || 3))), Math.cos(a), Math.sin(a));
             bossHit = true;
           } else {
             if (dono) e.ultimoDono = dono;
@@ -375,6 +475,8 @@
 
     onPlayerDead(p) {
       Sound.play('death');
+      // morreu na sala de um chefe vivo: ao voltar, os monstros do mundo renascem
+      this.morteChefe = this.room && this.room.type === 'boss' && !this.room.cleared;
       const m = this.modo();
       if (m === 'vs') {
         this.vencedor = this.players.find((o) => o !== p) || null;
@@ -480,35 +582,23 @@
       for (const p of vivos) this.portaTrancada(p);
     }
 
+    // portal da sala do puzzle: leva ao proximo mundo (no ultimo, ao final da historia)
     escada(p, t) {
-      const T = G.T;
-      const passagem = t === T.STAIRS_DOWN || t === T.STAIRS_UP || t === T.PORTAL || t === T.PORTAL2;
-      if (passagem && t !== T.STAIRS_UP && this.levelId === 'overworld') {
-        const o = this.room.objects.find((k) => k.kind === 'dungeonEntry' || k.kind === 'portal');
-        if (o) {
-          Sound.play('stairs');
-          const id = o.kind === 'portal' ? o.nivel : 'dungeon' + o.dungeon;
-          this.flags.returns = this.flags.returns || {};
-          this.flags.returns[id] = { room: this.roomIdx, x: o.tx * TILE + 3, y: (o.ty + 1) * TILE + 3 };
-          this.fadeTo(() => {
-            const lv = this.levels[id];
-            this.enterLevel(id, lv.start.room, lv.start.x, lv.start.y);
-            this.say(lv.name, 150);
-            this.save();
-          });
-          return true;
-        }
-      } else if (passagem && t !== T.STAIRS_DOWN && this.levelId !== 'overworld') {
-        Sound.play('stairs');
-        const ret = (this.flags.returns || {})[this.levelId] ||
-          { room: this.levels.overworld.start.room, x: this.levels.overworld.start.x, y: this.levels.overworld.start.y };
-        this.fadeTo(() => {
-          this.enterLevel('overworld', ret.room, ret.x, ret.y);
-          this.save();
-        });
+      if (t !== G.T.PORTAL || !this.level.mundo || !this.room.meta.puzzle) return false;
+      Sound.play('stairs');
+      const n = this.level.mundo;
+      if (n >= 3) {
+        this.fadeTo(() => this.contaHistoria(G.CENAS_FIM, () => { this.state = 'win'; Music.set('win'); }));
         return true;
       }
-      return false;
+      const id = 'mundo' + (n + 1), lv = this.levels[id];
+      this.fadeTo(() => {
+        this.enterLevel(id, lv.start.room, lv.start.x, lv.start.y);
+        this.flags.checkpoint = { level: id, room: lv.start.room, x: lv.start.x, y: lv.start.y };
+        this.say(lv.name + '\n' + lv.sub, 220);
+        this.save();
+      });
+      return true;
     }
 
     // porta trancada a frente (varre a caixa logo a frente do jogador)
@@ -565,7 +655,7 @@
         levelId: this.levelId, room: this.roomIdx, x: p.x, y: p.y,
         hp: p.hp, maxhp: p.maxhp, coins: p.coins, keys: p.keys,
         shards: p.shards, sword: p.sword,
-        cls: p.cls, elem: p.elem, compras: p.compras,
+        cls: p.cls, elem: p.elem, compras: p.compras, dif: this.difIdx,
         flags: this.flags
       };
       if (G.store.set(SAVE_KEY, JSON.stringify(data))) this.hasSave = true;
@@ -576,14 +666,10 @@
       try { d = JSON.parse(G.store.get(SAVE_KEY)); } catch (e) { d = null; }
       if (!d) return false;
       this.seed = d.seed;
-      this.levels = {
-        overworld: G.genOverworld(this.seed),
-        dungeon0: G.genDungeon(this.seed, 0),
-        dungeon1: G.genDungeon(this.seed, 1),
-        pantano: G.genPantano(this.seed),
-        castelo: G.genDungeon(this.seed, 2)
-      };
+      this.levels = this.geraMundos(this.seed);
+      if (!this.levels[d.levelId]) return false;
       this.flags = d.flags || { chests: {}, bosses: {}, cleared: {}, unlocked: {} };
+      this.flags.puzzles = this.flags.puzzles || {};
       this.flags.chests = this.flags.chests || {};
       this.flags.bosses = this.flags.bosses || {};
       this.flags.cleared = this.flags.cleared || {};
@@ -602,6 +688,10 @@
         if (ridx !== undefined && lv.rooms[ridx]) lv.rooms[ridx].cleared = true;
         else if (lv.bossRoom !== undefined) lv.rooms[lv.bossRoom].cleared = true;
       }
+      for (const lid in this.flags.visitadas || {}) {
+        const lv = this.levels[lid];
+        if (lv) for (const i of this.flags.visitadas[lid]) if (lv.rooms[i]) lv.rooms[i].visited = true;
+      }
       for (const key in this.flags.unlocked) {
         const parts = key.split(':');
         const lv = this.levels[parts[0]];
@@ -610,6 +700,7 @@
         if (room) this.unlockSide(room, parts[2]);
       }
 
+      if (DIFICULDADES[d.dif]) this.difIdx = d.dif;
       this.cls = G.CLASSES[d.cls] ? d.cls : 'guerreiro';
       this.player = new G.Player(d.x, d.y, this.cls);
       this.players = [this.player];
@@ -650,6 +741,8 @@
       switch (this.state) {
         case 'title': this.stepTitle(); break;
         case 'select': this.stepSelect(); break;
+        case 'dificuldade': this.stepDificuldade(); break;
+        case 'teleporte': this.stepTeleporte(); break;
         case 'play': this.stepPlay(); break;
         case 'transition': this.stepTransition(); break;
         case 'pause': this.stepPause(); break;
@@ -658,6 +751,8 @@
         case 'lobby': this.stepLobby(); break;
         case 'remoto': this.stepRemoto(); break;
         case 'fim': this.stepFim(); break;
+        case 'historia': if (this.historia) this.historia.update(this.input); break;
+        case 'batalha': if (this.batalha) this.batalha.update(); break;
       }
       if (this.remoteInput) this.remoteInput.endFrame();
 
@@ -690,6 +785,8 @@
       const i = this.input, n = G.CLASS_IDS.length;
       if (i.hit('left')) { this.selIdx = (this.selIdx + n - 1) % n; Sound.play('menu'); }
       if (i.hit('right')) { this.selIdx = (this.selIdx + 1) % n; Sound.play('menu'); }
+      if (i.hit('up') && this.selIdx >= SEL_COLUNAS) { this.selIdx -= SEL_COLUNAS; Sound.play('menu'); }
+      if (i.hit('down') && this.selIdx + SEL_COLUNAS < n) { this.selIdx += SEL_COLUNAS; Sound.play('menu'); }
       if (i.hit('pause')) {
         Sound.play('blocked');
         if (this.lobby) this.state = 'lobby'; else this.state = 'title';
@@ -698,13 +795,119 @@
       if (i.hit('start') || i.hit('attack')) {
         Sound.play('secret');
         if (this.lobby) this.iniciarRede(G.CLASS_IDS[this.selIdx]);
-        else this.newGame(null, G.CLASS_IDS[this.selIdx]);
+        else this.state = 'dificuldade';
       }
+    }
+
+    /* ---------------- teleporte (T): volta para qualquer sala ja visitada do mundo ---------------- */
+
+    abreTeleporte() {
+      const m = this.modo();
+      if (!this.level.mundo || m === 'vs' || m === 'comp') return;
+      if (this.player.dead) return;
+      if (this.room.sealed || (this.boss && !this.boss.dead && !this.room.cleared)) {
+        this.say('NAO DA PARA SE TELEPORTAR NO MEIO DE UMA LUTA COM CHEFE', 90);
+        Sound.play('blocked');
+        return;
+      }
+      this.tele = { sel: this.roomIdx };
+      this.state = 'teleporte';
+      Sound.play('cast');
+    }
+
+    stepTeleporte() {
+      const i = this.input, t = this.tele, lv = this.level;
+      let rx = t.sel % lv.cols, ry = (t.sel / lv.cols) | 0;
+      if (i.hit('left') && rx > 0) rx--;
+      if (i.hit('right') && rx < lv.cols - 1) rx++;
+      if (i.hit('up') && ry > 0) ry--;
+      if (i.hit('down') && ry < lv.rows - 1) ry++;
+      const novo = ry * lv.cols + rx;
+      if (novo !== t.sel) { t.sel = novo; Sound.play('menu'); }
+      if (i.hit('pause') || i.hit('teleporte')) { this.tele = null; this.state = 'play'; Sound.play('menu'); return; }
+      if (i.hit('start') || i.hit('attack')) {
+        const room = lv.rooms[t.sel];
+        if (!room.visited) { Sound.play('blocked'); this.say('VOCE AINDA NAO ESTEVE NESSA SALA', 70); return; }
+        this.tele = null;
+        this.state = 'play';
+        if (t.sel === this.roomIdx) return;
+        this.teleporta(t.sel);
+      }
+    }
+
+    teleporta(idx) {
+      Sound.play('stairs');
+      this.flashT = 8;
+      this.particles.burst(this.player.cx, this.player.cy, 24, 8, 2.2, 24);
+      this.fadeTo(() => {
+        const pos = this.pontoLivre(this.level.rooms[idx]);
+        this.enterLevel(this.levelId, idx, pos.x, pos.y);
+        this.particles.burst(this.player.cx, this.player.cy, 24, 8, 2.2, 24);
+        this.say('TELEPORTE: SALA ' + (this.room.meta.ordem + 1) + '/12', 80);
+        this.save();
+      });
+    }
+
+    // chao livre perto do meio da sala (espiral a partir do centro)
+    pontoLivre(room) {
+      const cx = ROOM_W >> 1, cy = ROOM_H >> 1;
+      for (let r = 0; r < 12; r++) {
+        for (let ty = cy - r; ty <= cy + r; ty++) {
+          for (let tx = cx - r; tx <= cx + r; tx++) {
+            if (Math.max(Math.abs(tx - cx), Math.abs(ty - cy)) !== r) continue;
+            const x = tx * TILE + 3, y = ty * TILE + 3;
+            if (tx > 0 && ty > 0 && tx < ROOM_W - 1 && ty < ROOM_H - 1 && !G.boxSolid(room, x, y, 10, 10, false)) return { x, y };
+          }
+        }
+      }
+      return { x: cx * TILE, y: cy * TILE };
+    }
+
+    drawTeleporte(c) {
+      c.fillStyle = 'rgba(6,8,16,0.9)';
+      c.fillRect(0, 0, VIEW_W, VIEW_H + HUD_H);
+      const lv = this.level, t = this.tele;
+      this.text(c, 'TELEPORTE', VIEW_W / 2, 26, '#b45cff', 'center', 12);
+      this.text(c, lv.name, VIEW_W / 2, 40, '#8f96a8', 'center');
+      const cw = 44, ch = 30, ox = (VIEW_W - lv.cols * cw) / 2, oy = 52;
+      const PAPEL = { inicio: 'INICIO', inimigos: 'INIMIGOS', tesouro: 'TESOURO', chefe: 'GUARDIAO', descanso: 'FONTE', puzzle: 'PORTAL' };
+      for (let ry = 0; ry < lv.rows; ry++) {
+        for (let rx = 0; rx < lv.cols; rx++) {
+          const idx = ry * lv.cols + rx, room = lv.rooms[idx], x = ox + rx * cw, y = oy + ry * ch;
+          const m = room.meta;
+          c.fillStyle = !room.visited ? '#1a1d29' : room.type === 'boss' ? (room.cleared ? '#4a2030' : '#8a2030')
+            : m.papel === 'descanso' ? '#1f4a5a' : m.puzzle ? '#4a2a6a' : '#2c3444';
+          c.fillRect(x + 2, y + 2, cw - 4, ch - 4);
+          if (room.visited) this.text(c, String(m.ordem + 1), x + cw / 2, y + ch / 2 + 4, '#c8cede', 'center');
+          if (idx === this.roomIdx) { c.fillStyle = '#ffd34d'; c.fillRect(x + 5, y + 5, 4, 4); }
+          if (idx === t.sel) {
+            c.strokeStyle = (this.tick >> 3) & 1 ? '#ffffff' : '#b45cff';
+            c.lineWidth = 2;
+            c.strokeRect(x + 1, y + 1, cw - 2, ch - 2);
+          }
+        }
+      }
+      const sel = lv.rooms[t.sel], y0 = oy + lv.rows * ch + 16;
+      if (sel.visited) {
+        const nome = 'SALA ' + (sel.meta.ordem + 1) + ' - ' + (PAPEL[sel.meta.papel] || '') + (t.sel === this.roomIdx ? ' (VOCE ESTA AQUI)' : '');
+        this.text(c, nome, VIEW_W / 2, y0, '#fff', 'center');
+      } else this.text(c, 'SALA AINDA NAO VISITADA', VIEW_W / 2, y0, '#5c667e', 'center');
+      this.text(c, 'AMARELO = VOCE   AZUL = FONTE   ROXO = PORTAL   VERMELHO = GUARDIAO', VIEW_W / 2, y0 + 14, '#5c667e', 'center');
+      this.text(c, 'SETAS ESCOLHEM   ENTER OU J TELEPORTA   T OU ESC FECHA', VIEW_W / 2, VIEW_H + HUD_H - 10, '#8f96a8', 'center');
+    }
+
+    stepDificuldade() {
+      const i = this.input;
+      if (i.hit('up') || i.hit('left')) this.trocaDificuldade(-1);
+      if (i.hit('down') || i.hit('right')) this.trocaDificuldade(1);
+      if (i.hit('pause')) { Sound.play('blocked'); this.state = 'select'; return; }
+      if (i.hit('start') || i.hit('attack')) { Sound.play('secret'); this.newGame(null, G.CLASS_IDS[this.selIdx]); }
     }
 
     stepPlay() {
       // solo: o menu (loja e mapa) pausa o jogo. Multijogador: cada um abre o seu e o jogo segue
       if (!this.mp && this.input.hit('pause')) { this.abreMenu(this.player); this.state = 'pause'; return; }
+      if (this.input.hit('teleporte') && this.fadeDir === 0) { this.abreTeleporte(); if (this.state !== 'play') return; }
       if (this.fadeDir > 0) return;
 
       for (const p of this.players) {
@@ -718,16 +921,30 @@
           if (p.menu) { this.stepMenu(p, i); continue; }   // parado enquanto olha a loja
           if (i.hit('pause')) { this.abreMenu(p); continue; }
         }
+        // tempo parado pelo cronomante: no VS o oponente tambem fica congelado
+        if (this.tempoParado > 0 && this.modo() === 'vs' && p !== this.tempoDono) continue;
         this.donoAtual = p;
+        // tudo que sair de um especial fica marcado com ele: X, C e V nao recarregam a si mesmos
+        this.fonteDano = p.fonteAtiva(p.input || this.input);
+        const n0 = this.ents.length, rec0 = p.recargas();
         p.update(this);
+        const usou = p.especialUsado(rec0);                 // especial solto neste quadro (ex.: soltar o X carregado)
+        if (usou) for (let k = n0; k < this.ents.length; k++) if (this.ents[k].dono === p && !this.ents[k].fonte) this.ents[k].fonte = usou;
+        this.fonteDano = null;
         this.donoAtual = null;
       }
 
       const ents = this.ents;
+      const parado = this.tempoParado > 0;
       for (let i = 0; i < ents.length; i++) {
         const e = ents[i];
+        // tempo parado: so anda o que os jogadores criaram (e itens e baus)
+        if (parado && e.dono === undefined && !e.pickup && !e.chest) continue;
+        this.fonteDano = e.fonte || null;
         if (!e.dead) e.update(this);
       }
+      this.fonteDano = null;
+      if (this.tempoParado > 0) this.tempoParado--;
       for (let i = ents.length - 1; i >= 0; i--) if (ents[i].dead) ents.splice(i, 1);
 
       this.particles.update();
@@ -825,6 +1042,10 @@
       if (i.hit('left') || i.hit('right')) { m.aba = 1 - m.aba; Sound.play('menu'); return; }
       if (m.aba === 1) {
         if (i.hit('start')) { p.menu = null; Sound.play('menu'); }
+        if (p === this.player && this.modo() !== 'vs') {       // dificuldade: so o jogador 1 muda
+          if (i.hit('up')) this.trocaDificuldade(-1);
+          if (i.hit('down')) this.trocaDificuldade(1);
+        }
         return;
       }
       const n = G.LOJA.length;
@@ -855,15 +1076,29 @@
         for (const p of this.players) {
           p.dead = false;
           p.respawnT = 0;
-          p.hp = Math.max(4, (p.maxhp / 2) | 0);
+          p.hp = p.maxhp;                     // volta ao inicio com a vida cheia
           p.inv = 90;
         }
         this.fadeTo(() => {
-          const lv = this.level, id = this.levelId;
-          this.enterLevel(id, lv.start.room, lv.start.x, lv.start.y);
+          // volta na ultima fonte (ou no comeco do mundo)
+          const lv = this.level, id = this.levelId, ck = this.flags.checkpoint;
+          if (this.morteChefe) { this.renasceMonstros(id); this.morteChefe = false; }
+          if (ck && ck.level === id) this.enterLevel(id, ck.room, ck.x, ck.y);
+          else this.enterLevel(id, lv.start.room, lv.start.x, lv.start.y);
           this.state = 'play';
         });
       }
+    }
+
+    // todas as salas de monstros do mundo voltam a ter inimigos (chefes derrotados e baus abertos continuam)
+    renasceMonstros(id) {
+      const lv = this.levels[id];
+      lv.rooms.forEach((room, idx) => {
+        if (room.type === 'boss' || !room.spawns.length) return;
+        room.cleared = false;
+        delete this.flags.cleared[id + ':' + idx];
+      });
+      this.save();
     }
 
     stepWin() {
@@ -1108,10 +1343,14 @@
 
       if (this.state === 'title') { this.drawTitle(c); this.drawFade(c); return; }
       if (this.state === 'select') { this.drawSelect(c); this.drawFade(c); return; }
+      if (this.state === 'dificuldade') { this.drawDificuldade(c); this.drawFade(c); return; }
+      if (this.state === 'teleporte' && this.tele) { this.drawHud(c); this.drawTeleporte(c); this.drawFade(c); return; }
       if (this.state === 'win') { this.drawWin(c); this.drawFade(c); return; }
       if (this.state === 'lobby') { this.drawLobby(c); this.drawFade(c); return; }
       if (this.state === 'remoto') { this.drawRemoto(c); return; }
       if (this.state === 'fim') { this.drawFim(c); this.drawFade(c); return; }
+      if (this.state === 'historia' && this.historia) { this.historia.draw(c); this.drawFade(c); return; }
+      if (this.state === 'batalha' && this.batalha) { this.batalha.draw(c); this.drawFade(c); return; }
 
       this.drawHud(c);
 
@@ -1129,6 +1368,12 @@
 
       c.restore();
 
+      if (this.tempoParado > 0 && this.state !== 'transition') {   // tempo parado: tudo acinzentado
+        c.fillStyle = 'rgba(90,120,150,0.25)';
+        c.fillRect(0, HUD_H, VIEW_W, VIEW_H);
+        this.text(c, 'TEMPO PARADO ' + Math.ceil(this.tempoParado / 60) + 's', VIEW_W / 2, HUD_H + 12, '#5ce1ff', 'center');
+      }
+
       if (this.flashT > 0) {
         c.fillStyle = 'rgba(255,238,190,' + (this.flashT / 24).toFixed(2) + ')';
         c.fillRect(0, HUD_H, VIEW_W, VIEW_H);
@@ -1140,7 +1385,7 @@
       if (this.hudP && this.hudP.dead && this.mp && this.hudP.respawnT > 0 && this.state === 'play') {
         this.text(c, 'VOCE CAIU - VOLTA EM ' + Math.ceil(this.hudP.respawnT / 60) + 'S', VIEW_W / 2, HUD_H + 40, '#e33b4e', 'center');
       }
-      this.drawMsg(c);
+      if (!(this.state === 'pause' || (this.hudP && this.hudP.menu))) this.drawMsg(c);   // o menu nao fica coberto
       if (this.brancoT > 0) {                    // meteoro: branco total, depois fade
         const a = Math.min(1, this.brancoT / BRANCO_FADE);
         c.fillStyle = 'rgba(255,255,255,' + a.toFixed(3) + ')';
@@ -1177,6 +1422,7 @@
         c.fillStyle = this.level.tint;
         c.fillRect(ox, oy, VIEW_W, VIEW_H);
       }
+      if (this.boss && !this.boss.dead && this.boss.escuridao) this.boss.escuridao(c, this, ox, oy);   // mariposa
       if (this.boss && !this.boss.dead) this.drawBossBar(c, ox, oy);
     }
 
@@ -1226,14 +1472,12 @@
 
     /* ---------------- HUD e telas ---------------- */
 
+    // fonte de pixel (core.js) com sombra; `size` antigo vira escala inteira: <10 = 1x, <22 = 2x, senao 3x
     text(c, s, x, y, col, align, size) {
-      c.font = (size || 8) + 'px "Courier New", monospace';
-      c.textAlign = align || 'left';
-      c.fillStyle = '#000';
-      c.fillText(s, (x | 0) + 1, (y | 0) + 1);
-      c.fillStyle = col || '#fff';
-      c.fillText(s, x | 0, y | 0);
-      c.textAlign = 'left';
+      const e = !size || size < 10 ? 1 : size < 22 ? 2 : 3, sombra = e === 3 ? 2 : 1;
+      s = String(s);
+      G.textoPixel(c, s, (x | 0) + sombra, (y | 0) + sombra, '#000', align, e);
+      G.textoPixel(c, s, x | 0, y | 0, col || '#fff', align, e);
     }
 
     drawHud(c) {
@@ -1265,9 +1509,9 @@
       this.text(c, String(p.coins).padStart(3, '0'), R + 11, 12, '#ffd34d');
       c.drawImage(S.key, R, 16);
       this.text(c, 'x' + this.player.keys, R + 11, 23, '#ffd34d');
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < FRAGMENTOS; i++) {         // 6 fragmentos em 2 fileiras
         c.globalAlpha = i < this.player.shards ? 1 : 0.22;
-        c.drawImage(S.shard, VIEW_W - 60 + i * 16, 8);
+        c.drawImage(S.shard, VIEW_W - 64 + (i % 3) * 11, 3 + ((i / 3) | 0) * 13, 10, 10);
         c.globalAlpha = 1;
       }
 
@@ -1297,7 +1541,17 @@
         if (pronto) { if ((this.tick >> 4) & 1) this.text(c, 'OK', x + 34, 30, cor); }
         else this.text(c, (max - falta) + '/' + max, x + 34, 30, '#5c667e');
       };
-      if (p.def.xEspera) {                     // X sem abates: so a espera depois de usar
+      if (p.def.custo) {                       // vampira: X, C e V custam vida e tem recarga curta
+        const cds = [p.cdX, p.cdC, p.cdV], cores = ['#7fd858', '#b45cff', '#ffd34d'];
+        ['X', 'C', 'V'].forEach((t, k) => {
+          const x = 160 + k * 62, cd = cds[k], max = p.def.recarga[k], pode = cd === 0 && p.hp > p.def.custo[k];
+          this.text(c, t, x, 30, pode ? cores[k] : '#5c667e');
+          c.fillStyle = '#2a2a3a'; c.fillRect(x + 8, 26, 22, 4);
+          c.fillStyle = pode ? cores[k] : '#5c667e';
+          c.fillRect(x + 8, 26, Math.round(22 * (1 - cd / max)), 4);
+          this.text(c, '-' + p.def.custo[k], x + 34, 30, pode ? '#e33b4e' : '#5c667e');
+        });
+      } else if (p.def.xEspera) {              // X sem abates: so a espera depois de usar
         const pronto = p.xCd === 0;
         this.text(c, 'X', 160, 30, pronto ? '#7fd858' : '#5c667e');
         c.fillStyle = '#2a2a3a'; c.fillRect(168, 26, 22, 4);
@@ -1306,8 +1560,13 @@
         if (pronto) { if ((this.tick >> 4) & 1) this.text(c, 'OK', 194, 30, '#7fd858'); }
         else this.text(c, Math.ceil(p.xCd / 60) + 's', 194, 30, '#5c667e');
       } else slot('X', 160, p.spCd, p.spMax, '#7fd858', '#4a7a3a');
-      slot('C', 222, p.spinCd, p.spinMax, '#b45cff', '#5a3a7a');
-      slot('V', 284, p.goldCd, p.goldMax, '#ffd34d', '#8a6a1f');
+      if (!p.def.custo) {
+        slot('C', 222, p.spinCd, p.spinMax, '#b45cff', '#5a3a7a');
+        slot('V', 284, p.goldCd, p.goldMax, '#ffd34d', '#8a6a1f');
+      }
+      if (p.formaT > 0) this.text(c, (p.forma === 'lobo' ? 'LOBO ' : 'URSO ') + Math.ceil(p.formaT / 60) + 's', 160, 12, '#7fd858');
+      if (p.laser > 0) this.text(c, 'LASER ' + Math.ceil(p.laser / 60) + 's', 160, 12, '#e33b4e');
+      if (p.morcego > 0) this.text(c, 'MORCEGOS', 160, 12, '#b45cff');
 
       if (p.def.modo === 'magic') {
         const e = p.elemento(), r = p.elementoRestante();
@@ -1325,8 +1584,10 @@
       // embaixo a esquerda: sala e nome do lugar (nao cobre mais as barras)
       if (this.room && this.level) {
         const m = this.room.meta;
-        const sala = this.level.kind === 'dungeon' ? 'SALA ' + (m.rx + 1) + '-' + (m.ry + 1) : 'X' + (m.rx + 1) + ' Y' + (m.ry + 1);
-        if (this.level.kind !== 'arena') this.text(c, sala + '  ' + this.level.name, 6, 28, '#8f96a8');
+        const sala = m.ordem !== undefined ? 'SALA ' + (m.ordem + 1) + '/12'
+          : this.level.kind === 'dungeon' ? 'SALA ' + (m.rx + 1) + '-' + (m.ry + 1) : 'X' + (m.rx + 1) + ' Y' + (m.ry + 1);
+        const nome = this.level.mundo ? this.level.name.split(' - ')[0] : this.level.name;
+        if (this.level.kind !== 'arena') this.text(c, sala + '  ' + nome, 6, 28, '#8f96a8');
       }
     }
 
@@ -1374,9 +1635,10 @@
       }
       this.text(c, 'A LENDA DE', VIEW_W / 2, 52, '#8f96a8', 'center', 10);
       this.text(c, 'AURUM', VIEW_W / 2, 80, '#ffd34d', 'center', 26);
-      c.drawImage(this.SPR.hero.down[(t >> 4) & 1], VIEW_W / 2 - 32, 96);
-      c.drawImage(this.SPR.goblin.left[(t >> 3) & 1], VIEW_W / 2 + 16, 96);
-      c.drawImage(this.SPR.shard, VIEW_W / 2 - 7, 92 + Math.sin(t * 0.06) * 2);
+      this.text(c, 'OS FRAGMENTOS DO MUNDO', VIEW_W / 2, 92, '#b45cff', 'center');
+      c.drawImage(this.SPR.hero.down[(t >> 4) & 1], VIEW_W / 2 - 32, 104);
+      c.drawImage(this.SPR.goblin.left[(t >> 3) & 1], VIEW_W / 2 + 16, 104);
+      c.drawImage(this.SPR.shard, VIEW_W / 2 - 7, 102 + Math.sin(t * 0.06) * 2);
 
       if ((t >> 5) & 1) {
         this.text(c, this.hasSave ? 'ENTER = CONTINUAR' : 'ENTER = COMECAR', VIEW_W / 2, 140, '#fff', 'center');
@@ -1384,7 +1646,7 @@
       this.text(c, this.hasSave ? 'J = NOVO JOGO   ESC = APAGAR SAVE' : 'J = COMECAR', VIEW_W / 2, 156, '#8f96a8', 'center');
       this.text(c, Net.codigoDoLink() ? 'N = ENTRAR NA SALA ' + Net.codigoDoLink() : 'N = MULTIJOGADOR', VIEW_W / 2, 168, '#5ce1ff', 'center');
       this.text(c, 'WASD MOVER  J ATACA  ESPACO ROLA', VIEW_W / 2, 182, '#5c667e', 'center');
-      this.text(c, 'F = PODER   X / C / V = HABILIDADES   ESC PAUSA', VIEW_W / 2, 194, '#5c667e', 'center');
+      this.text(c, 'F = PODER   X / C / V = HABILIDADES   T = TELEPORTE   ESC PAUSA', VIEW_W / 2, 194, '#5c667e', 'center');
       this.text(c, 'DUPLO CLIQUE = TELA CHEIA', VIEW_W / 2, 208, '#3a4159', 'center');
     }
 
@@ -1400,13 +1662,14 @@
       this.text(c, 'ESCOLHA SEU HEROI', VIEW_W / 2, 20, '#ffd34d', 'center', 12);
 
       const S = this.SPR;
-      const pw = 62, ph = 96, gap = 4;
-      const total = G.CLASS_IDS.length * pw + (G.CLASS_IDS.length - 1) * gap;
-      const ox = (VIEW_W - total) / 2, oy = 32;
+      const pw = 64, ph = 58, gap = 4, col = SEL_COLUNAS;
+      const total = col * pw + (col - 1) * gap;
+      const ox = (VIEW_W - total) / 2;
 
       G.CLASS_IDS.forEach((id, k) => {
         const def = G.CLASSES[id];
-        const x = ox + k * (pw + gap);
+        const linha = (k / col) | 0, n = Math.min(col, G.CLASS_IDS.length - linha * col);
+        const x = (VIEW_W - (n * pw + (n - 1) * gap)) / 2 + (k % col) * (pw + gap), oy = 28 + linha * (ph + 4);
         const sel = k === this.selIdx;
 
         c.fillStyle = sel ? '#242a42' : '#171b2c';
@@ -1419,45 +1682,37 @@
         const frame = sel ? ((t >> 3) & 1) : 0;
         const img = S.heroes[id].walk.down[frame];
         const bob = sel ? Math.sin(t * 0.1) : 0;
-        c.drawImage(img, (x + pw / 2 - 16) | 0, (oy + 8 + bob) | 0, 32, 32);
+        c.drawImage(img, (x + pw / 2 - 16) | 0, (oy + 2 + bob) | 0, 32, 32);
 
-        this.text(c, def.nome, x + pw / 2, oy + 52, sel ? '#ffd34d' : '#8f96a8', 'center');
-        this.text(c, def.arma, x + pw / 2, oy + 62, '#5c667e', 'center');
-
-        // coracoes e dano
-        const hearts = Math.ceil(def.hp / 2);
-        for (let h = 0; h < hearts; h++) {
-          const meio = def.hp - h * 2 === 1;
-          c.drawImage(S.heartHud[meio ? 1 : 2], (x + pw / 2 - hearts * 4.5 + h * 9) | 0, oy + 68);
-        }
-        this.text(c, 'DANO ' + def.dmg, x + pw / 2, oy + 84, '#8f96a8', 'center');
-        this.text(c, 'VEL ' + def.speed.toFixed(1), x + pw / 2, oy + 93, '#8f96a8', 'center');
+        this.text(c, def.nome, x + pw / 2, oy + 44, sel ? '#ffd34d' : '#8f96a8', 'center');
+        this.text(c, def.arma, x + pw / 2, oy + 54, '#5c667e', 'center');
       });
 
       const def = G.CLASSES[G.CLASS_IDS[this.selIdx]];
-      def.desc.forEach((l, i) => this.text(c, l, VIEW_W / 2, 140 + i * 11, '#c8cede', 'center'));
-      this.text(c, 'HABILIDADE (F): ' + def.skill, VIEW_W / 2, 166, '#ff8a3d', 'center');
-      if (G.CLASS_IDS[this.selIdx] === 'arqueiro') {
-        this.text(c, 'SEGURA J CARREGA   X = SALVA DE 3 (SEGURE = 4 SALVAS)   C = 4 GIROS', VIEW_W / 2, 178, '#7fd858', 'center');
-      }
-      if (G.CLASS_IDS[this.selIdx] === 'mago') {
-        this.text(c, '7 FOGO > 4 GELO > 2 RAIO   X = RAIOS   C = ESCUDO   V = INFERNO', VIEW_W / 2, 178, '#7ff2ff', 'center');
-      }
-      if (G.CLASS_IDS[this.selIdx] === 'guerreiro') {
-        this.text(c, 'X INVESTIDA 1s   C TORNADO 7s   V RELAMPAGO', VIEW_W / 2, 178, '#c8cede', 'center');
-      }
-      if (G.CLASS_IDS[this.selIdx] === 'bomber') {
-        this.text(c, 'X 3 MINAS   C ESCUDO DE BOMBAS   V BOMBA GRUDENTA', VIEW_W / 2, 178, '#ff8a3d', 'center');
-      }
-      if (G.CLASS_IDS[this.selIdx] === 'percy') {
-        this.text(c, 'X TRIDENTE 3s   C BARREIRA   V REDEMOINHO', VIEW_W / 2, 178, '#5aa7ff', 'center');
-      }
-      if (G.CLASS_IDS[this.selIdx] === 'ninja') {
-        this.text(c, 'X 5 ESTRELAS   C VELOCIDADE 10s   V VENENO', VIEW_W / 2, 178, '#7fd858', 'center');
-      }
-      this.text(c, G.CLASSES[G.CLASS_IDS[this.selIdx]].xEspera ? 'C E V LIBERAM COM 6 E 10 ABATES (O F TEM RECARGA)'
-        : 'X, C E V LIBERAM COM 3, 6 E 10 ABATES (SO O F TEM RECARGA)', VIEW_W / 2, 188, '#8f96a8', 'center');
-      this.text(c, 'SETAS ESCOLHEM   ENTER CONFIRMA   ESC VOLTA', VIEW_W / 2, 200, '#5c667e', 'center');
+      def.desc.forEach((l, i) => this.text(c, l, VIEW_W / 2, 162 + i * 10, '#c8cede', 'center'));
+      this.text(c, 'DANO ' + def.dmg + '   VEL ' + def.speed.toFixed(1) + '   F: ' + def.skill, VIEW_W / 2, 183, '#ff8a3d', 'center');
+      if (def.dica) this.text(c, def.dica, VIEW_W / 2, 193, def.dicaCor || '#c8cede', 'center');
+      this.text(c, def.regra || (def.xEspera ? 'C E V LIBERAM COM 6 E 10 ABATES (O F TEM RECARGA)'
+        : 'X, C E V LIBERAM COM 3, 6 E 10 ABATES (SO O F TEM RECARGA)'), VIEW_W / 2, 203, '#8f96a8', 'center');
+      this.text(c, 'SETAS ESCOLHEM   ENTER CONFIRMA   ESC VOLTA', VIEW_W / 2, 215, '#5c667e', 'center');
+    }
+
+    drawDificuldade(c) {
+      this.fundoMenu(c);
+      const def = G.CLASSES[G.CLASS_IDS[this.selIdx]];
+      c.drawImage(this.SPR.heroes[G.CLASS_IDS[this.selIdx]].walk.down[(this.tick >> 4) & 1], VIEW_W / 2 - 16, 22, 32, 32);
+      this.text(c, def.nome, VIEW_W / 2, 64, '#8f96a8', 'center');
+      this.text(c, 'DIFICULDADE', VIEW_W / 2, 84, '#fff', 'center', 12);
+      DIFICULDADES.forEach((d, k) => {
+        const sel = k === this.difIdx, x = VIEW_W / 2 - 150 + k * 100;
+        c.fillStyle = sel ? '#242a42' : '#171b2c'; c.fillRect(x, 96, 100 - 8, 28);
+        c.strokeStyle = sel ? d.cor : '#3a4159'; c.lineWidth = 1; c.strokeRect(x + 0.5, 96.5, 100 - 9, 27);
+        this.text(c, d.nome, x + 46, 114, sel ? d.cor : '#5c667e', 'center', 10);
+      });
+      const d = DIFICULDADES[this.difIdx];
+      d.desc.forEach((l, k) => this.text(c, l, VIEW_W / 2, 140 + k * 11, '#c8cede', 'center'));
+      this.text(c, 'DA PARA TROCAR DEPOIS NO MENU (ESC), NA ABA MAPA', VIEW_W / 2, 194, '#5c667e', 'center');
+      this.text(c, 'SETAS ESCOLHEM   ENTER COMECA   ESC VOLTA', VIEW_W / 2, 212, '#5c667e', 'center');
     }
 
     // menu do ESC com duas abas: LOJA e MAPA (pausa no solo)
@@ -1490,7 +1745,7 @@
             c.fillStyle = room.cleared ? '#3a4a5c' : '#2c3444';
           }
           c.fillRect(x, y, cw - 2, ch - 2);
-          const campo = lv.kind === 'field';
+          const campo = lv.kind === 'field' || !!lv.mundo;
           if (room.meta.cave !== undefined && (room.visited || campo)) {
             c.fillStyle = '#ffd34d'; c.fillRect(x + 5, y + 3, 4, 4);
           }
@@ -1503,6 +1758,7 @@
             c.fillRect(x + 4, y + 2, 6, 6);
             c.fillStyle = '#16161f'; c.fillRect(x + 5, y + 4, 1, 1); c.fillRect(x + 8, y + 4, 1, 1);
           }
+          if (room.meta.puzzle) { c.fillStyle = '#b45cff'; c.fillRect(x + 5, y + 3, 4, 4); }
           if (idx === this.roomIdx) {
             c.strokeStyle = '#ffd34d'; c.lineWidth = 1;
             c.strokeRect(x + 0.5, y + 0.5, cw - 3, ch - 3);
@@ -1512,8 +1768,9 @@
 
       this.text(c, lv.name, VIEW_W / 2, 40, '#8f96a8', 'center');
       if (this.levelId === 'overworld') this.text(c, 'AMARELO = CAVERNA   VERDE = PANTANO   ROXO = CASTELO   VERMELHO = CHEFE', VIEW_W / 2, oy + mh + 6, '#5c667e', 'center');
+      else if (lv.mundo) this.text(c, 'VERMELHO = GUARDIAO DA FENDA   ROXO = PORTAL (PUZZLE)', VIEW_W / 2, oy + mh + 6, '#5c667e', 'center');
       else if (lv.kind === 'field') this.text(c, 'VERMELHO = CHEFE', VIEW_W / 2, oy + mh + 6, '#5c667e', 'center');
-      this.text(c, 'MOEDAS ' + p.coins + '   CHAVES ' + p.keys + '   FRAGMENTOS ' + p.shards + '/2',
+      this.text(c, 'MOEDAS ' + p.coins + '   CHAVES ' + p.keys + '   FRAGMENTOS ' + p.shards + '/' + FRAGMENTOS,
         VIEW_W / 2, oy + mh + 16, '#fff', 'center');
       this.text(c, p.def.nome + '   ' + p.def.arma + ' NIVEL ' + p.sword + '   VIDA ' + Math.ceil(p.hp / 2) + '/' + Math.ceil(p.maxhp / 2),
         VIEW_W / 2, oy + mh + 28, '#fff', 'center');
@@ -1522,17 +1779,23 @@
       // X, C e V: quanto falta (abates, ou dano no oponente no VS)
       const un = this.modo() === 'vs' ? ' DE DANO' : ' ABATES';
       const falta = (n) => (n === 0 ? 'PRONTO' : 'FALTAM ' + n + un);
-      const nomes = { bow: ['SALVA DE 3 FLECHAS (X, SEGURE)', '4 GIROS (C)', 'DOURADA (V)'],
-        melee: ['INVESTIDA (X, SEGURE)', 'TORNADO (C)', 'RELAMPAGO (V)'],
-        magic: ['TEMPESTADE DE RAIOS (X)', 'ESCUDO (C)', 'INFERNO (V)'],
-        ninja: ['ESTRELAS NINJA (X)', 'VELOCIDADE (C)', 'VENENO (V)'],
-        percy: ['TRIDENTE (X)', 'BARREIRA (C)', 'REDEMOINHO (V)'],
-        bomber: ['3 MINAS (X)', 'ESCUDO DE BOMBAS (C)', 'BOMBA GRUDENTA (V)'] }[p.def.modo];
+      const nomes = p.def.hab;
+      const estado = (k) => {
+        if (p.def.custo) {                     // vampira: custo em vida e recarga curta
+          const cd = [p.cdX, p.cdC, p.cdV][k];
+          return cd ? 'ESPERA ' + Math.ceil(cd / 60) + 's' : 'CUSTA ' + p.def.custo[k] + ' DE VIDA';
+        }
+        if (k === 0 && p.def.xEspera) return p.xCd === 0 ? 'PRONTO' : 'ESPERA ' + Math.ceil(p.xCd / 60) + 's';
+        return falta([p.spCd, p.spinCd, p.goldCd][k]);
+      };
       if (nomes) {
-        const xTxt = p.def.xEspera ? (p.xCd === 0 ? 'PRONTO' : 'ESPERA ' + Math.ceil(p.xCd / 60) + 's') : falta(p.spCd);
-        this.text(c, nomes[0] + ': ' + xTxt, VIEW_W / 2, oy + mh + 52, '#7fd858', 'center');
-        this.text(c, nomes[1] + ': ' + falta(p.spinCd), VIEW_W / 2 - 6, oy + mh + 64, '#b45cff', 'right');
-        this.text(c, nomes[2] + ': ' + falta(p.goldCd), VIEW_W / 2 + 6, oy + mh + 64, '#ffd34d', 'left');
+        this.text(c, nomes[0] + ': ' + estado(0), VIEW_W / 2, oy + mh + 52, '#7fd858', 'center');
+        this.text(c, nomes[1] + ': ' + estado(1), VIEW_W / 2 - 6, oy + mh + 64, '#b45cff', 'right');
+        this.text(c, nomes[2] + ': ' + estado(2), VIEW_W / 2 + 6, oy + mh + 64, '#ffd34d', 'left');
+      }
+      if (this.modo() !== 'vs') {
+        const d = this.dif();
+        this.text(c, 'DIFICULDADE: ' + d.nome + (p === this.player ? '   (CIMA / BAIXO MUDA)' : ''), VIEW_W / 2, VIEW_H + HUD_H - 24, d.cor, 'center');
       }
       this.text(c, 'SETAS PARA OS LADOS = LOJA   ESC OU ENTER = VOLTAR', VIEW_W / 2, VIEW_H + HUD_H - 12, '#5c667e', 'center');
     }
@@ -1585,10 +1848,10 @@
       if (L.etapa === 'menu') {
         lista([{ nome: 'CRIAR SALA', desc: 'VOCE HOSPEDA, O OUTRO ENTRA' },
           { nome: 'ENTRAR NA SALA', desc: L.codigo ? 'SALA ' + L.codigo : 'ENTRA NA SALA DE QUEM HOSPEDA' },
-          { nome: 'VOLTAR' }], 76, 26);
+          { nome: 'VOLTAR' }], 76, 34);
       } else if (L.etapa === 'modo') {
         this.text(c, 'MODO DE JOGO', VIEW_W / 2, 64, '#fff', 'center');
-        lista(MODOS, 86, 26);
+        lista(MODOS, 88, 34);
       } else if (L.etapa === 'arena') {
         this.text(c, 'ESCOLHA A ARENA DO VS', VIEW_W / 2, 64, '#fff', 'center');
         lista(G.ARENAS, 84, 20);
@@ -1701,9 +1964,11 @@
         c.fillStyle = i % 3 ? '#2a2445' : '#3a3260';
         c.fillRect(x | 0, y, 1, 1);
       }
-      this.text(c, 'AURUM RENASCE', VIEW_W / 2, 60, '#ffd34d', 'center', 16);
-      c.drawImage(this.SPR.shard, VIEW_W / 2 - 24, 80 + Math.sin(t * 0.05) * 3);
-      c.drawImage(this.SPR.shard, VIEW_W / 2 + 10, 80 + Math.cos(t * 0.05) * 3);
+      this.text(c, 'O MUNDO RENASCE', VIEW_W / 2, 60, '#ffd34d', 'center', 16);
+      for (let k = 0; k < FRAGMENTOS; k++) {
+        const a = t * 0.02 + (k / FRAGMENTOS) * Math.PI * 2;
+        c.drawImage(this.SPR.shard, VIEW_W / 2 - 7 + Math.cos(a) * 36, 84 + Math.sin(a) * 12);
+      }
       c.drawImage(this.SPR.hero.down[(t >> 4) & 1], VIEW_W / 2 - 8, 104);
       const p = this.hudP || this.player;
       this.text(c, 'MOEDAS: ' + p.coins, VIEW_W / 2, 140, '#fff', 'center');

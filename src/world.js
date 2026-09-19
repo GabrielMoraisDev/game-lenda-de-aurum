@@ -176,6 +176,9 @@
     { rx: 5, ry: 4, tipo: 'arquimago' }    // sudeste
   ];
 
+  // ferramentas de montagem usadas pelos mundos da campanha (mundos.js)
+  G.mundoUtil = { newRoom, put, rect, openSide, sorteia, DIRS, OPP, MX, MY, CX0, CY0, SOLID };
+
   /* ---------------- mundo aberto ---------------- */
 
   const OW_COLS = 6, OW_ROWS = 5;
