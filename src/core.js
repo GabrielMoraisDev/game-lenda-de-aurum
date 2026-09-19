@@ -271,7 +271,7 @@
       this.sfx.gain.value = 0.5;
       this.sfx.connect(this.master);
       this.musicBus = this.ctx.createGain();
-      this.musicBus.gain.value = 0.16;
+      this.musicBus.gain.value = 0.112;
       this.musicBus.connect(this.master);
       this.ready = true;
     },
@@ -484,7 +484,7 @@
       for (let i = 1; i <= 16; i++) f['boss' + i] = 'src/music/boss' + i + '.mp3';
       return f;
     })(),
-    els: {}, el: null, VOL_ARQUIVO: 0.5,
+    els: {}, el: null, VOL_ARQUIVO: 0.35,
 
     audio(n) {
       let a = this.els[n];
