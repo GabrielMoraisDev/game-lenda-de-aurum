@@ -156,8 +156,10 @@
       this.state = 'batalha';
       this.flashT = 10;
       Sound.play('boss');
-      Music.set('boss');
+      Music.set(this.musicaChefe(chefe));
     }
+
+    musicaChefe(e) { return (e && G.MUSICA_CHEFE[e.tipoChefe]) || 'boss'; }
 
     fimBatalha(b, res) {
       this.batalha = null;
@@ -244,7 +246,7 @@
       this.stairsCd = 26;
       this.loadRoom(roomIdx);
       this.juntaJogadores(this.player);
-      Music.set(this.room.type === 'boss' && !this.room.cleared ? 'boss' : this.level.music);
+      Music.set(this.room.type === 'boss' && !this.room.cleared ? this.musicaChefe(this.boss) : this.level.music);
     }
 
     loadRoom(idx) {
@@ -270,7 +272,7 @@
           if (e.boss && this.room.cleared) continue;
           this.escala(e);
           this.ents.push(e);
-          if (e.boss) this.boss = e;
+          if (e.boss) { e.tipoChefe = s.type; this.boss = e; }
         }
       }
       for (const o of this.room.objects) {
@@ -287,7 +289,7 @@
         // fecha as portas so depois que todos sairem de cima delas (senao o heroi fica preso no batente)
         this.room.sealed = false;
         this.selar = true;
-        Music.set('boss');
+        Music.set(this.musicaChefe(this.boss));
         this.say(this.boss.name, 120);
         Sound.play('boss');
       } else {

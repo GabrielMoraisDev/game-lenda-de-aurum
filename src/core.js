@@ -477,16 +477,51 @@
       }
     },
 
+    // faixas em mp3 (src/music); o que nao esta aqui continua sintetizado (arenas do VS, vitoria)
+    files: (function () {
+      const f = { historia: 'src/music/open.mp3' };
+      for (let i = 1; i <= 8; i++) f['world' + i] = 'src/music/world' + i + '.mp3';
+      for (let i = 1; i <= 16; i++) f['boss' + i] = 'src/music/boss' + i + '.mp3';
+      return f;
+    })(),
+    els: {}, el: null, VOL_ARQUIVO: 0.5,
+
+    audio(n) {
+      let a = this.els[n];
+      if (!a) {
+        a = new Audio(this.files[n]);
+        a.loop = true;
+        a.preload = 'auto';
+        a.volume = this.VOL_ARQUIVO;
+        this.els[n] = a;
+      }
+      return a;
+    },
+
+    pausaArquivo() {
+      if (this.el) { this.el.pause(); this.el = null; }
+    },
+
     set(n) {
       if (this.name === n) return;
       this.name = n;
       this.step = 0;
       this.next = Sound.ctx ? Sound.ctx.currentTime + 0.05 : 0;
+      this.pausaArquivo();
+      if (n && this.files[n]) {
+        this.el = this.audio(n);
+        this.el.currentTime = 0;
+      }
     },
 
-    stop() { this.name = null; },
+    stop() { this.name = null; this.pausaArquivo(); },
 
     update() {
+      if (this.el) {
+        this.el.muted = !Sound.on;
+        if (this.el.paused && Sound.ready) this.el.play().catch(() => {});
+        return;
+      }
       if (!Sound.ready || !Sound.on || !this.name) return;
       const t = this.tracks[this.name];
       if (!t) return;

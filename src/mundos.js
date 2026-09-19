@@ -265,7 +265,7 @@
   const MUNDOS = [
     {
       id: 'mundo1', nome: 'MUNDO 1 - AURUM FRATURADO', sub: 'ONDE A PRIMEIRA FENDA SE ABRIU',
-      music: 'field', tint: 'rgba(60,20,80,0.06)',
+      music: 'world1', tint: 'rgba(60,20,80,0.06)',
       pal: { '.': T.GRASS, ',': T.GRASS2, '#': T.ROCK, 'T': T.TREE, '~': T.WATER, '=': T.PATH, 'o': T.STATUE, 'b': T.BUSH,
              borda: T.TREE, porta: T.PATH, chao2: T.GRASS2, extra: T.FLOWER, selo: T.ROCK },
       chefes: ['devorador', 'colosso'],
@@ -280,7 +280,7 @@
     },
     {
       id: 'mundo2', nome: 'MUNDO 2 - PANTANO DAS FENDAS', sub: 'UM UNIVERSO QUE ENGOLIU O NOSSO',
-      music: 'pantano', tint: 'rgba(30,60,20,0.16)',
+      music: 'world2', tint: 'rgba(30,60,20,0.16)',
       pal: { '.': T.BOG, ',': T.BOG2, '#': T.ROCK, 'T': T.DEAD_TREE, '~': T.SWAMP_WATER, '=': T.MUD, 'o': T.DEAD_TREE, 'b': T.MUSHROOM,
              borda: T.DEAD_TREE, porta: T.MUD, chao2: T.BOG2, extra: T.MUSHROOM, selo: T.ROCK, placa: T.STATUE },
       chefes: ['mariposa', 'eco'],
@@ -295,7 +295,7 @@
     },
     {
       id: 'mundo3', nome: 'MUNDO 3 - CIDADELA DO VAZIO', sub: 'NO CENTRO DO COLAPSO',
-      music: 'castelo', tint: 'rgba(50,0,25,0.14)',
+      music: 'world3', tint: 'rgba(50,0,25,0.14)',
       pal: { '.': T.CFLOOR, ',': T.CFLOOR2, '#': T.PILLAR, 'T': T.CWALL, '~': T.LAVA, '=': T.CARPET, 'o': T.PILLAR, 'b': T.STATUE,
              borda: T.CWALL, porta: T.DOOR, chao2: T.CFLOOR2, extra: T.CFLOOR2, selo: T.PILLAR, tocha: T.BANNER, placa: T.STATUE },
       chefes: ['reflexo', 'coracao'],
@@ -311,7 +311,7 @@
     },
     {
       id: 'mundo4', nome: 'MUNDO 4 - DESERTO DOS ESPELHOS', sub: 'ONDE A AREIA GUARDA O QUE VOCE ERA',
-      music: 'deserto', tint: 'rgba(120,90,30,0.12)',
+      music: 'world4', tint: 'rgba(120,90,30,0.12)',
       pal: { '.': T.DUNE, ',': T.DUNE2, '#': T.SANDSTONE, 'T': T.CACTUS, '~': T.WATER, '=': T.PATH, 'o': T.STATUE, 'b': T.GLASS,
              borda: T.SANDSTONE, porta: T.PATH, chao2: T.DUNE2, extra: T.GLASS, selo: T.SANDSTONE, placa: T.STATUE },
       chefes: ['rainha', 'esfinge'],
@@ -327,7 +327,7 @@
     },
     {
       id: 'mundo5', nome: 'MUNDO 5 - GELEIRA DO SILENCIO', sub: 'O MUNDO QUE PAROU NO MEIO DE UM GRITO',
-      music: 'geleira', tint: 'rgba(60,110,160,0.16)',
+      music: 'world5', tint: 'rgba(60,110,160,0.16)',
       pal: { '.': T.SNOW, ',': T.ICE, '#': T.ICE_WALL, 'T': T.PINE, '~': T.WATER, '=': T.SNOW, 'o': T.ICE_WALL, 'b': T.ICE,
              borda: T.PINE, porta: T.SNOW, chao2: T.ICE, extra: T.ICE, selo: T.ICE_WALL, placa: T.STATUE },
       chefes: ['tita', 'arauto'],
@@ -343,7 +343,7 @@
     },
     {
       id: 'mundo6', nome: 'MUNDO 6 - FORJA DO MUNDO', sub: 'ONDE AURUM FOI MARTELADO PELA PRIMEIRA VEZ',
-      music: 'forja', tint: 'rgba(120,30,0,0.16)',
+      music: 'world6', tint: 'rgba(120,30,0,0.16)',
       pal: { '.': T.BASALT, ',': T.EMBER, '#': T.OBSIDIAN, 'T': T.OBSIDIAN, '~': T.LAVA, '=': T.BASALT, 'o': T.OBSIDIAN, 'b': T.EMBER,
              borda: T.OBSIDIAN, porta: T.BASALT, chao2: T.EMBER, extra: T.EMBER, selo: T.OBSIDIAN, tocha: T.TORCH, placa: T.STATUE },
       chefes: ['forjador', 'serpente'],
@@ -359,7 +359,7 @@
     },
     {
       id: 'mundo7', nome: 'MUNDO 7 - ILHAS DO CEU', sub: 'OS PEDACOS QUE O COLAPSO JOGOU PARA CIMA',
-      music: 'ceu', tint: 'rgba(40,90,170,0.12)',
+      music: 'world7', tint: 'rgba(40,90,170,0.12)',
       pal: { '.': T.CLOUD, ',': T.SKYSTONE, '#': T.SKYSTONE, 'T': T.SKYSTONE, '~': T.SKY, '=': T.CLOUD, 'o': T.SKYSTONE, 'b': T.CLOUD,
              borda: T.SKYSTONE, porta: T.CLOUD, chao2: T.CLOUD, extra: T.CLOUD, selo: T.SKYSTONE, placa: T.STATUE },
       chefes: ['roc', 'guardiao'],
@@ -375,7 +375,7 @@
     },
     {
       id: 'mundo8', nome: 'MUNDO 8 - O VAZIO ENTRE MUNDOS', sub: 'DEPOIS DAQUI NAO TEM MAIS ONDE',
-      music: 'vazio', tint: 'rgba(30,0,60,0.22)',
+      music: 'world8', tint: 'rgba(30,0,60,0.22)',
       pal: { '.': T.VOID, ',': T.STARS, '#': T.VOIDWALL, 'T': T.VOIDWALL, '~': T.RIFT, '=': T.STARS, 'o': T.VOIDWALL, 'b': T.STARS,
              borda: T.VOIDWALL, porta: T.STARS, chao2: T.STARS, extra: T.STARS, selo: T.VOIDWALL, placa: T.STATUE },
       chefes: ['trindade', 'tecelao'],
@@ -391,6 +391,10 @@
     }
   ];
   G.MUNDOS = MUNDOS;
+
+  // faixa de cada guardiao: boss1..boss16, dois por mundo na ordem de MUNDOS
+  G.MUSICA_CHEFE = {};
+  MUNDOS.forEach((m, i) => m.chefes.forEach((c, j) => { G.MUSICA_CHEFE[c] = 'boss' + (i * 2 + j + 1); }));
 
   // onde cada chefe nasce (padrao: no meio, perto do topo)
   const CHEFE_POS = {
