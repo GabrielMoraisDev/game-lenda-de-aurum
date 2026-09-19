@@ -265,13 +265,13 @@
       if (!AC) { this.on = false; return; }
       this.ctx = new AC();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.6;
+      this.master.gain.value = 0.4;
       this.master.connect(this.ctx.destination);
       this.sfx = this.ctx.createGain();
-      this.sfx.gain.value = 0.5;
+      this.sfx.gain.value = 0.9;
       this.sfx.connect(this.master);
       this.musicBus = this.ctx.createGain();
-      this.musicBus.gain.value = 0.112;
+      this.musicBus.gain.value = 0.100;
       this.musicBus.connect(this.master);
       this.ready = true;
     },
