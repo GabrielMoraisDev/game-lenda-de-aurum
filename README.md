@@ -11,18 +11,23 @@ Se preferir servidor local: `servir.bat` ou `python -m http.server 8080`.
 
 ### Multijogador pela internet (GitHub Pages ou qualquer site estático)
 
-Sem servidor próprio: os dois navegadores se conectam direto (WebRTC, via [PeerJS](https://peerjs.com),
+Sem servidor próprio: cada navegador se conecta direto no de quem hospeda (WebRTC, via [PeerJS](https://peerjs.com),
 carregado do CDN só quando você abre o multijogador; o servidor público do PeerJS só apresenta um ao outro).
+Não há limite fixo de jogadores: entra quem tiver o código.
 
 1. Quem hospeda aperta **N** no título, **CRIAR SALA**, escolhe o modo (no VS, também a arena) e o herói.
    A tela mostra um **código de sala** de 5 letras (C copia o link `...?sala=CODIGO`).
-2. O outro jogador abre o jogo, aperta **N**, **ENTRAR NA SALA**, digita o código (ou abre o link, que já
-   vem com ele) e escolhe o herói. A partida começa sozinha.
+2. Os outros abrem o jogo, apertam **N**, **ENTRAR NA SALA**, digitam o código (ou abrem o link, que já
+   vem com ele) e escolhem o herói. Cada um vira o jogador 2, 3, 4...
+3. Na **sala de espera** todos veem quem já entrou. O anfitrião aperta **ENTER** para começar (no VS precisa
+   de pelo menos mais um jogador).
+4. A sala continua aberta durante a partida: quem chegar depois **entra no meio** (no cooperativo e no
+   competitivo, ao lado do anfitrião; no VS, assiste e entra na próxima rodada). O código aparece no menu (ESC).
 
-Precisa de internet nos dois. Em algumas redes muito fechadas (NAT simétrico, firewall de empresa) a conexão
+Precisa de internet em todos. Em algumas redes muito fechadas (NAT simétrico, firewall de empresa) a conexão
 direta pode não sair, porque não há servidor TURN.
 
-### Multijogador em rede local (2 jogadores)
+### Multijogador em rede local
 
 Precisa do [Node.js](https://nodejs.org) no PC de quem hospeda (sem pacotes extras). Quando o jogo é aberto
 pelo `servidor.js`, ele percebe (rota `/aurum-servidor`) e usa o WebSocket local em vez do código de sala.
@@ -31,23 +36,31 @@ pelo `servidor.js`, ele percebe (rota `/aurum-servidor`) e usa o WebSocket local
    por exemplo `http://192.168.1.100:8080/`. Na primeira vez o Windows pergunta sobre o firewall:
    permita em **redes privadas**.
 2. Quem hospeda abre `http://localhost:8080/`, aperta **N** no título, **CRIAR SALA**, escolhe o modo
-   e o herói. A tela mostra o endereço para o outro jogador.
-3. O outro jogador, no mesmo Wi-Fi/rede, abre esse endereço no navegador, aperta **N**,
-   **ENTRAR NA SALA** e escolhe o herói. A partida começa sozinha.
+   e o herói. A tela mostra o endereço para os outros.
+3. Os outros, no mesmo Wi-Fi/rede, abrem esse endereço no navegador, apertam **N**,
+   **ENTRAR NA SALA** e escolhem o herói. O anfitrião aperta ENTER para começar.
 
 | Modo | Como funciona |
 |---|---|
-| **Cooperativo** | O jogo normal com os dois. Quem cair volta em 4 s ao lado do parceiro; se os dois caírem, é fim de jogo. Chaves e fragmentos valem para o grupo. |
-| **Competitivo** | 3 minutos: quem matar mais bichos vence. Aparecem inimigos novos o tempo todo na sala (até 6 vivos). Quem cair volta em 3 s. Placar e cronômetro no topo da tela. |
-| **VS** | Um contra o outro numa **arena fechada** (sem saídas), escolhida por quem cria a sala: Campo de Aurum, Caverna dos Goblins, Pântano Sombrio ou Castelo Sombrio. Sem monstros, **20 de vida** cada, mostrada em **barra** (no HUD e no placar do topo). Todos os ataques e especiais acertam o oponente (todo F — onda de choque, bola de fogo, meteoro, explosivos, tsunami, bomba nuclear e os F dos heróis novos — tira 2, o dobro de uma espada comum). X, C e V liberam com o **dano causado no oponente**: 3, 6 e 10 pontos de vida tirados. |
+| **Cooperativo** | O jogo normal com todos. Quem cair volta em 4 s ao lado de quem está vivo; se todos caírem, é fim de jogo. Chaves e fragmentos valem para o grupo. |
+| **Competitivo** | 3 minutos: quem matar mais bichos vence (empate no topo = empate). Aparecem inimigos novos o tempo todo na sala (até 6 vivos com 2 jogadores, +2 por jogador a mais, até 16). Quem cair volta em 3 s. Placar e cronômetro no topo da tela. |
+| **VS** | **Todos contra todos** numa **arena fechada** (sem saídas), escolhida por quem cria a sala: Campo de Aurum, Caverna dos Goblins, Pântano Sombrio ou Castelo Sombrio. Os jogadores começam em roda, de frente para o centro. Sem monstros, **20 de vida** cada, mostrada em **barra** (no HUD e no placar do topo). Quem cai está eliminado e assiste; **o último de pé vence**. Todos os ataques e especiais acertam os oponentes (todo F — onda de choque, bola de fogo, meteoro, explosivos, tsunami, bomba nuclear e os F dos heróis novos — tira 2, o dobro de uma espada comum). X, C e V liberam com o **dano causado nos oponentes**: 3, 6 e 10 pontos de vida tirados. |
 
-No fim do competitivo e do VS, o anfitrião aperta ENTER para jogar de novo ou ESC para sair.
+No fim do competitivo e do VS, o anfitrião aperta ENTER para jogar de novo (com todos que estão na sala) ou ESC para sair.
 
-Como funciona: o PC do anfitrião roda o jogo inteiro com os dois heróis; o convidado só envia os
-comandos e recebe a tela pronta (com o HUD dele), os sons e a música, a 30 quadros por segundo
-(cerca de 5 Mbps). Assim os dois veem sempre a mesma coisa, sem dessincronizar. A tela é compartilhada:
-os dois ficam na mesma sala, e quando um sai pela borda o outro vai junto. Uma setinha amarela marca
-o jogador 1 e uma azul o jogador 2. O multijogador não mexe no save do modo solo.
+Como funciona: o PC do anfitrião roda o jogo inteiro com todos os heróis; cada convidado só envia os
+comandos e recebe a tela pronta, os sons e a música, a 30 quadros por segundo. A imagem do jogo é a mesma
+para todos, então o anfitrião a codifica **uma vez só** e cada convidado recebe à parte só a faixa do próprio
+HUD (15 por segundo). Quem está com a loja aberta, caído ou no placar final recebe uma tela inteira só dele.
+Assim todos veem sempre a mesma coisa, sem dessincronizar. A tela é compartilhada: todos ficam na mesma sala,
+e quando um sai pela borda os outros vão junto. Cada jogador tem uma setinha de uma cor em cima do herói
+(amarela = 1, azul = 2, vermelha = 3, verde = 4...).
+
+**Quantos cabem:** pela internet, o anfitrião sobe um vídeo para cada convidado (cerca de 3 a 5 Mbps cada;
+a qualidade da imagem cai um pouco a cada jogador a mais). Com internet doméstica comum, 3 a 5 convidados
+rodam bem; mais que isso depende do upload de quem hospeda. Na rede local o anfitrião sobe cada quadro uma
+vez só e o `servidor.js` copia para todos, então cabe bem mais gente. Um convidado com a conexão lenta
+perde quadros sem atrasar os outros. O multijogador não mexe no save do modo solo.
 
 ### Controles
 
@@ -210,9 +223,9 @@ quatro diagonais em 3/4), mais duas poses de golpe por direção (preparação e
 
 ### Especiais do guerreiro — X, C e V
 
-Mesmas teclas do arqueiro, com barras no HUD e abates que faltam na pausa. O X não depende de abates: recarrega em 5 s e **não deixa invulnerável** (pode levar dano
-durante o dash, o que interrompe a investida). A investida relâmpago (V) deixa o guerreiro **invulnerável por 3 s, piscando**,
-contados a partir do golpe, e ele fica intocável durante o tornado (C) e o relâmpago. Nenhum dos três troca de sala nem pega
+Mesmas teclas do arqueiro, com barras no HUD e abates que faltam na pausa. O X não depende de abates: recarrega em 5 s. A investida (X) e o tornado (C) deixam o guerreiro **invulnerável só no primeiro 1 s**
+(depois disso ele pode levar dano, o que interrompe o golpe). A investida relâmpago (V) deixa o guerreiro **invulnerável por 3 s, piscando**,
+contados a partir do golpe, e ele fica intocável durante todo o relâmpago. Nenhum dos três troca de sala nem pega
 escada no meio.
 
 | Tecla | Especial | O que faz | Dano | Libera com |
@@ -445,7 +458,7 @@ depois da troca.
 
 | | Vida dos inimigos | Vida dos chefes | Ritmo dos chefes | Tiros, raios, escudos e invocações | Dano que você leva | Golpe de chefe | Moedas por monstro |
 |---|---|---|---|---|---|---|---|
-| **Fácil** | −30% | metade | 75% (tudo mais lento) | 60% | metade (mínimo 1) | 1 coração | **15** (5 moedas de 3) |
+| **Fácil** | −30% | −30% | 75% (tudo mais lento) | 60% | metade (mínimo 1) | meio coração (qualquer golpe na luta com chefe) | **15** (5 moedas de 3) |
 | **Médio** | normal | normal | normal | normal | normal | 1 coração e meio | **8** (4 moedas de 2) |
 | **Difícil** | +40% | +50% | 120% | 135% | +50% | 2 corações e meio | **3** (3 moedas de 1) |
 
@@ -560,7 +573,7 @@ style.css       layout, escala pixelada, botões de toque
 src/core.js     matemática, input (teclado/gamepad/toque), áudio sintetizado,
                 sequenciador de música, sistema de partículas
 src/net.js      cliente de rede: WebSocket (servidor.js) ou WebRTC com código de sala (site estático),
-                entrada remota do jogador 2, eco de sons e música
+                entrada remota de cada convidado, eco de sons e música
 src/art.js      geração de todos os tiles e sprites em canvases offscreen
 src/world.js    tiles, colisão, geração do mundo aberto e das masmorras, cache de sala
 src/entities.js jogador, inimigos, chefes, projéteis, itens e baús

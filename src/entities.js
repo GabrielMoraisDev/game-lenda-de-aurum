@@ -251,6 +251,7 @@
   const KN_RUSH_MULT = 4;                      // 4x o dano da espada em cada inimigo
   const KN_RUSH_MAX = 900;                     // limite de seguranca: 15 s
   const KN_INVULNERAVEL = 180;                 // relampago (V): 3 s invulneravel, piscando
+  const KN_INV_GOLPE = 60;                     // investida (X) e giro (C): 1 s invulneravel no inicio
   const KN_RUSH_PARA = 300;                    // relampago (V): quem e atingido fica paralisado 5 s
 
   // ninja
@@ -1345,7 +1346,8 @@
       this.dashDmg = this.dano() * KN_DASH_MULT;
       this.dashCheia = cheia;
       this.hitSet.clear();
-      this.xCd = this.def.xEspera;               // a investida nao deixa invulneravel
+      this.xCd = this.def.xEspera;
+      this.inv = Math.max(this.inv, KN_INV_GOLPE);
       Sound.play(cheia ? 'shootbig' : 'swing');
       g.shake(cheia ? 6 : 3);
       g.particles.burst(this.cx, this.cy, cheia ? 18 : 8, cheia ? 0 : 1, 2, 16);
@@ -1387,6 +1389,7 @@
       this.giro = KN_GIRO_T;
       this.giroAng = Math.atan2(v[1], v[0]);
       this.spinCd = this.spinMax;
+      this.inv = Math.max(this.inv, KN_INV_GOLPE);
       this.spCharging = false; this.spCharge = 0;
       this.hitSet.clear();
       Sound.play('spin');
@@ -1896,7 +1899,7 @@
     hurt(g, dmg, fx, fy) {
       const autor = this.ultimoDono;
       this.ultimoDono = null;
-      if (this.inv > 0 || this.roll > 0 || this.dead || this.giro > 0 || this.rush || this.escudo > 0 || this.morcego > 0) return;
+      if (this.inv > 0 || this.roll > 0 || this.dead || this.rush || this.escudo > 0 || this.morcego > 0) return;
       if (!autor && g.danoRecebido) dmg = g.danoRecebido(dmg);   // dificuldade (golpes de monstros; no VS nao muda)
       if (this.forma === 'urso') dmg = Math.ceil(dmg / 2);   // urso: metade do dano
       G.danoNoOponente(g, this, autor, Math.min(dmg, this.hp));

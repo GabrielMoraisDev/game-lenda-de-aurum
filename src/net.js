@@ -1,10 +1,12 @@
 /* net.js - multijogador.
-   O anfitriao roda o jogo inteiro (os dois herois). O convidado so manda os
-   comandos e recebe a tela pronta, os sons e a musica.
+   O anfitriao roda o jogo inteiro (todos os herois). Cada convidado so manda os
+   comandos e recebe a tela pronta, os sons e a musica. Quantos convidados quiserem.
    Dois transportes, mesmo protocolo:
    - 'ws':  aberto pelo servidor.js (rede local). O servidor repassa as mensagens.
    - 'p2p': site estatico (GitHub Pages, arquivo local...). Conexao direta WebRTC via
-            PeerJS; o anfitriao ganha um CODIGO DE SALA e faz o papel do servidor. */
+            PeerJS; o anfitriao ganha um CODIGO DE SALA e faz o papel do servidor.
+   Cada convidado tem um id (2, 3, 4...) que e o numero do jogador dele.
+   Quadros binarios: [tipo, n, id1..idn, imagem]; n = 0 manda para todos. */
 (function (G) {
   'use strict';
 
@@ -18,6 +20,10 @@
   const TAM_CODIGO = 5;
   const FOLGA = 262144;                             // nao empilha quadros no canal
   const SILENCIO = 12000;                           // p2p: 12 s sem receber nada = o outro caiu
+  const PING = 3000;                                // p2p: sinal de vida na sala de espera
+  const MAX_ID = 255;                               // o id cabe em um byte do cabecalho do quadro
+
+  const QUADRO = { CHEIO: 0, MUNDO: 1, HUD: 2 };    // MUNDO: tela sem HUD proprio; HUD: so a faixa de cima
 
   function carregaPeerJS() {
     if (window.Peer) return Promise.resolve();
@@ -38,12 +44,22 @@
     return c;
   }
 
+  function primeiroLivre(usados) {
+    let id = 2;
+    while (usados.has(id)) id++;
+    return id;
+  }
+
   const Net = {
     ws: null,
     ips: [], porta: 0,
     transporte: null,     // 'ws' | 'p2p' (definido por detectar())
+    papel: null,          // 'host' | 'guest'
+    id: 0,                // convidado: o numero do jogador dele
     codigo: '',           // p2p: codigo da sala do anfitriao
-    peer: null, conn: null,
+    peer: null,
+    conn: null,           // convidado p2p: conexao com o anfitriao
+    conns: new Map(),     // anfitriao p2p: id do convidado -> conexao
     _fim: null,
 
     // o servidor.js responde em /aurum-servidor; sem ele (GitHub Pages etc.) vai de P2P
@@ -73,8 +89,11 @@
     conectar(primeira, onMsg, onFim) {
       this.fechar();
       this._fim = onFim;
+      this.papel = primeira.t === 'criar' ? 'host' : 'guest';
       const recebe = (m) => {
-        if (m && m.t === 'ola') { this.ips = m.ips || []; this.porta = m.porta || 0; }
+        if (m.t === 'ping') return;
+        if (m.t === 'ola') { this.ips = m.ips || []; this.porta = m.porta || 0; }
+        if (m.t === 'sala' && m.id) this.id = m.id;
         onMsg(m);
       };
       if (this.transporte === 'ws') this.conectarWS(primeira, recebe);
@@ -85,14 +104,12 @@
 
     conectarWS(primeira, onMsg) {
       const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
-      ws.binaryType = 'blob';
+      ws.binaryType = 'arraybuffer';
       this.ws = ws;
       ws.onopen = () => ws.send(JSON.stringify(primeira));
       ws.onmessage = (ev) => {
-        if (typeof ev.data !== 'string') { onMsg({ t: 'quadro', blob: ev.data }); return; }
-        let m;
-        try { m = JSON.parse(ev.data); } catch (e) { return; }
-        onMsg(m);
+        const m = this.decodifica(ev.data);
+        if (m) onMsg(m);
       };
       ws.onclose = () => { if (this.ws === ws) { this.ws = null; this.encerrou(); } };
     },
@@ -102,11 +119,9 @@
     conectarP2P(primeira, onMsg) {
       const sessao = {};
       this.ultimoRx = Date.now();
+      this._ultPing = 0;
       clearInterval(this._vigia);
-      this._vigia = setInterval(() => {         // WebRTC demora a notar que o outro fechou a aba
-        if (this._sessao !== sessao) { clearInterval(this._vigia); return; }
-        if (this.conn && this.conn.open && Date.now() - this.ultimoRx > SILENCIO) onMsg({ t: 'saiu' });
-      }, 1000);
+      this._vigia = setInterval(() => this.vigiar(sessao, onMsg), 1000);
       this._sessao = sessao;
       const vivo = () => this._sessao === sessao;
       carregaPeerJS().then(() => {
@@ -118,7 +133,26 @@
       });
     },
 
-    // anfitriao: registra "PREFIXO+codigo" e espera o convidado
+    // WebRTC demora a notar que o outro fechou a aba; o ping mantem viva a sala de espera
+    vigiar(sessao, onMsg) {
+      if (this._sessao !== sessao) { clearInterval(this._vigia); return; }
+      const agora = Date.now();
+      const ping = agora - this._ultPing > PING;
+      if (ping) this._ultPing = agora;
+      if (this.papel === 'guest') {
+        const c = this.conn;
+        if (!c || !c.open) return;
+        if (agora - this.ultimoRx > SILENCIO) onMsg({ t: 'saiu' });
+        else if (ping) c.send({ t: 'ping' });
+        return;
+      }
+      for (const c of Array.from(this.conns.values())) {
+        if (agora - c.ultimoRx > SILENCIO) c.sair();
+        else if (ping && c.open) c.send({ t: 'ping' });
+      }
+    },
+
+    // anfitriao: registra "PREFIXO+codigo" e recebe quantos convidados vierem
     hospedar(primeira, onMsg, sessao, tentativa) {
       const codigo = novoCodigo();
       const peer = new window.Peer(PREFIXO + codigo);
@@ -130,29 +164,38 @@
       });
       peer.on('connection', (conn) => {
         if (this._sessao !== sessao) { conn.close(); return; }
-        if (this.conn) {                               // sala cheia
-          conn.on('open', () => { conn.send({ t: 'erro', msg: 'A SALA JA ESTA CHEIA' }); setTimeout(() => conn.close(), 500); });
-          return;
-        }
-        this.conn = conn;
-        this.ultimoRx = Date.now();
+        let id = 0;
+        conn.ultimoRx = Date.now();
+        conn.sair = () => {
+          if (!id || this.conns.get(id) !== conn) return;
+          this.conns.delete(id);
+          try { conn.close(); } catch (e) { /* ja fechado */ }
+          if (this._sessao === sessao) onMsg({ t: 'saiu', id });
+        };
         conn.on('data', (d) => {
+          conn.ultimoRx = Date.now();
           const m = this.decodifica(d);
-          if (!m) return;
-          if (m.t === 'entrar') {                      // o anfitriao faz o papel do servidor
-            conn.send({ t: 'sala', modo: primeira.modo });
-            onMsg({ t: 'entrou', cls: m.cls });
+          if (!m || m.t === 'ping') return;
+          if (!id) {                                   // o anfitriao faz o papel do servidor
+            if (m.t !== 'entrar') return;
+            const livre = primeiroLivre(this.conns);
+            if (livre > MAX_ID) {
+              conn.send({ t: 'erro', msg: 'A SALA ESTA CHEIA' });
+              setTimeout(() => conn.close(), 500);
+              return;
+            }
+            id = livre;
+            this.conns.set(id, conn);
+            conn.send({ t: 'sala', modo: primeira.modo, id });
+            onMsg({ t: 'entrou', id, cls: m.cls });
             return;
           }
+          if (m.t === 'saiu') { conn.sair(); return; }
+          m.id = id;
           onMsg(m);
         });
-        const saiu = () => {
-          if (this.conn !== conn) return;
-          this.conn = null;
-          if (this._sessao === sessao) onMsg({ t: 'saiu' });
-        };
-        conn.on('close', saiu);
-        conn.on('error', saiu);
+        conn.on('close', conn.sair);
+        conn.on('error', conn.sair);
       });
       peer.on('error', (e) => {
         if (this._sessao !== sessao) return;
@@ -161,11 +204,11 @@
           this.hospedar(primeira, onMsg, sessao, tentativa + 1);
           return;
         }
-        if (this.conn) return;                         // ja conectado: erro do servidor de sinalizacao nao importa
+        if (this.codigo) return;                       // sala ja aberta: erro de um convidado nao derruba a sala
         onMsg({ t: 'erro', msg: 'NAO FOI POSSIVEL CRIAR A SALA' });
       });
-      peer.on('disconnected', () => {                  // perdeu o servidor de sinalizacao: tenta voltar
-        if (this._sessao === sessao && !peer.destroyed && !this.conn) peer.reconnect();
+      peer.on('disconnected', () => {                  // perdeu o servidor de sinalizacao: volta para aceitar quem chegar
+        if (this._sessao === sessao && !peer.destroyed) peer.reconnect();
       });
     },
 
@@ -188,7 +231,11 @@
           clearTimeout(timer);
           conn.send({ t: 'entrar', cls: primeira.cls });
         });
-        conn.on('data', (d) => { const m = this.decodifica(d); if (m) onMsg(m); });
+        conn.on('data', (d) => {
+          this.ultimoRx = Date.now();
+          const m = this.decodifica(d);
+          if (m) onMsg(m);
+        });
         const caiu = () => {
           if (this.conn !== conn) return;
           this.conn = null;
@@ -205,11 +252,13 @@
       });
     },
 
-    // quadros chegam como binario; o resto como objeto
+    // quadros chegam como binario; o resto como objeto (p2p) ou texto JSON (ws)
     decodifica(d) {
-      this.ultimoRx = Date.now();
-      if (d instanceof ArrayBuffer || ArrayBuffer.isView(d)) return { t: 'quadro', blob: new Blob([d]) };
-      if (typeof Blob !== 'undefined' && d instanceof Blob) return { t: 'quadro', blob: d };
+      if (d instanceof ArrayBuffer || ArrayBuffer.isView(d)) {
+        const b = d instanceof ArrayBuffer ? new Uint8Array(d) : new Uint8Array(d.buffer, d.byteOffset, d.byteLength);
+        if (b.length < 2) return null;
+        return { t: 'quadro', tipo: b[0], blob: new Blob([b.subarray(2 + b[1])]) };
+      }
       if (typeof d === 'string') { try { return JSON.parse(d); } catch (e) { return null; } }
       return d && typeof d === 'object' ? d : null;
     },
@@ -222,29 +271,55 @@
       if (f) f();
     },
 
-    aberto() {
-      if (this.ws) return this.ws.readyState === 1;
-      return !!this.conn && this.conn.open;
+    // anfitriao: `para` manda so para aquele convidado; sem ele, para todos
+    enviar(m, para) {
+      if (this.ws) {
+        if (this.ws.readyState === 1) this.ws.send(JSON.stringify(para ? Object.assign({ para }, m) : m));
+        return;
+      }
+      if (this.papel === 'guest') { if (this.conn && this.conn.open) this.conn.send(m); return; }
+      if (para) { const c = this.conns.get(para); if (c && c.open) c.send(m); return; }
+      for (const c of this.conns.values()) if (c.open) c.send(m);
     },
-    enviar(m) {
-      if (!this.aberto()) return;
-      if (this.ws) this.ws.send(JSON.stringify(m));
-      else this.conn.send(m);
+
+    // anfitriao: um quadro codificado para os convidados `ids`
+    enviarBin(blob, tipo, ids) {
+      blob.arrayBuffer().then((buf) => {
+        if (this.ws) {
+          if (this.ws.readyState !== 1) return;
+          // rede local: sobe uma vez so, o servidor copia para cada convidado da lista
+          const out = new Uint8Array(2 + ids.length + buf.byteLength);
+          out[0] = tipo; out[1] = ids.length;
+          ids.forEach((id, k) => { out[2 + k] = id; });
+          out.set(new Uint8Array(buf), 2 + ids.length);
+          this.ws.send(out.buffer);
+          return;
+        }
+        const out = new Uint8Array(2 + buf.byteLength);
+        out[0] = tipo;
+        out.set(new Uint8Array(buf), 2);
+        for (const id of ids) {
+          const c = this.conns.get(id);
+          if (c && c.open) c.send(out.buffer);
+        }
+      });
     },
-    enviarBin(b) {
-      if (!this.aberto()) return;
-      if (this.ws) { this.ws.send(b); return; }
-      const conn = this.conn;
-      b.arrayBuffer().then((buf) => { if (this.conn === conn && conn.open) conn.send(buf); });
+
+    // o canal ate o convidado `id` aguenta mais um quadro?
+    folga(id) {
+      if (this.ws) return this.ws.readyState === 1 && this.ws.bufferedAmount < FOLGA;
+      const c = this.conns.get(id);
+      if (!c || !c.open) return false;
+      const dc = c.dataChannel;
+      return (c.bufferSize || 0) < 4 && (!dc || dc.bufferedAmount < FOLGA);
     },
-    folga() {
-      if (!this.aberto()) return false;
-      if (this.ws) return this.ws.bufferedAmount < FOLGA;
-      const dc = this.conn.dataChannel;
-      return (this.conn.bufferSize || 0) < 4 && (!dc || dc.bufferedAmount < FOLGA);
+
+    // formato do quadro: PNG na rede local, WebP pela internet (mais leve quanto mais gente,
+    // porque o anfitriao sobe um quadro para cada convidado)
+    formatoQuadro(convidados) {
+      if (this.ws) return ['image/png'];
+      return ['image/webp', Math.max(0.55, 0.9 - 0.05 * Math.max(0, convidados - 1))];
     },
-    // formato do quadro: PNG na rede local, WebP (bem menor) pela internet
-    formatoQuadro() { return this.ws ? ['image/png'] : ['image/webp', 0.9]; },
 
     fechar() {
       this.eco = false;
@@ -252,12 +327,17 @@
       this._sessao = null;
       this._fim = null;
       this.codigo = '';
+      this.papel = null;
+      this.id = 0;
       if (this.ws) {
         const w = this.ws;
         this.ws = null;
         try { w.close(); } catch (e) { /* ja fechado */ }
       }
       if (this.conn) { const c = this.conn; this.conn = null; try { c.close(); } catch (e) { /* ja fechado */ } }
+      const cs = Array.from(this.conns.values());
+      this.conns.clear();
+      for (const c of cs) { try { c.close(); } catch (e) { /* ja fechado */ } }
       if (this.peer) { const p = this.peer; this.peer = null; try { p.destroy(); } catch (e) { /* ja fechado */ } }
     },
 
@@ -271,14 +351,14 @@
       return { d, h };
     },
 
-    TAM_CODIGO, LETRAS,
-    eco: false            // anfitriao com convidado: repete sons e musica no convidado
+    TAM_CODIGO, LETRAS, QUADRO,
+    eco: false            // anfitriao com convidados: repete sons e musica neles
   };
   G.Net = Net;
-  // fechou a aba: avisa o outro na hora (senao o WebRTC leva varios segundos para perceber)
-  addEventListener('pagehide', () => { if (Net.conn) Net.enviar({ t: 'saiu' }); });
+  // fechou a aba: avisa na hora (senao o WebRTC leva varios segundos para perceber)
+  addEventListener('pagehide', () => { if (Net.papel) Net.enviar({ t: 'saiu' }); });
 
-  // entrada do convidado, vista pelo anfitriao
+  // entrada de um convidado, vista pelo anfitriao
   class RemoteInput {
     constructor() { this.d = 0; this.h = 0; }
     receber(m) { this.d = m.d | 0; this.h |= m.h | 0; }   // apertos acumulam ate o proximo quadro
@@ -288,7 +368,7 @@
   }
   G.RemoteInput = RemoteInput;
 
-  // sons e musica do anfitriao tambem tocam no convidado
+  // sons e musica do anfitriao tambem tocam nos convidados
   const Sound = G.Sound, Music = G.Music;
   const play = Sound.play.bind(Sound);
   Sound.play = function (n) { play(n); if (Net.eco) Net.enviar({ t: 'som', n }); };

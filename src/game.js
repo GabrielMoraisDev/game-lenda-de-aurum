@@ -14,9 +14,9 @@
 
   // multijogador
   const MODOS = [
-    { id: 'coop', nome: 'COOPERATIVO', desc: 'OS DOIS JUNTOS NO JOGO NORMAL' },
+    { id: 'coop', nome: 'COOPERATIVO', desc: 'TODOS JUNTOS NO JOGO NORMAL' },
     { id: 'comp', nome: 'COMPETITIVO', desc: 'QUEM MATA MAIS BICHOS EM 3 MINUTOS' },
-    { id: 'vs', nome: 'VS', desc: 'UM CONTRA O OUTRO NUMA ARENA, 20 DE VIDA' }
+    { id: 'vs', nome: 'VS', desc: 'TODOS CONTRA TODOS NUMA ARENA, 20 DE VIDA' }
   ];
   const COMP_TEMPO = 180 * 60;          // competitivo: 3 minutos
   const COMP_MAX = 6;                   // competitivo: inimigos vivos na sala
@@ -27,7 +27,12 @@
   };
   const VS_HP = 20;                     // VS: 20 de vida, mostrada em barra
   const RESPAWN_COOP = 240, RESPAWN_COMP = 180;
-  const COR_P = ['#ffd34d', '#5ce1ff'];  // marcador do jogador 1 e 2
+  const COMP_MAX_TETO = 16;             // competitivo: +2 inimigos por jogador alem do segundo, ate este teto
+  // marcador de cada jogador (1 amarelo, 2 azul, ...); passando de 8, as cores se repetem
+  const COR_P = ['#ffd34d', '#5ce1ff', '#ff6b6b', '#7fd858', '#c77dff', '#ff9f43', '#f8f8f8', '#ff7ac8'];
+  const corJ = (p) => COR_P[(p.num - 1) % COR_P.length];
+  const HUD_HZ = 4;                     // convidados: HUD proprio a cada 4 passos (15 por segundo)
+  const TELAS_COM_HUD = { play: 1, transition: 1, teleporte: 1 };
   const BRANCO_CHEIO = 24, BRANCO_FADE = 72;   // meteoro: quadros de branco total e de fade
   const GAP_X = G.GAP_X, GAP_Y = G.GAP_Y;   // aberturas das salas (world.js)
   const FRAGMENTOS = 16;                  // 2 guardioes por mundo, 8 mundos
@@ -35,9 +40,10 @@
   // dificuldade: vida dos inimigos e chefes e dano que o heroi leva
   const DIFICULDADES = [
   // vida: monstros comuns; chefeVida: chefes; ritmo: velocidade dos chefes; tiros: quantidade de ataques dos chefes
-    { nome: 'FACIL', cor: '#7fd858', vida: 0.7, chefeVida: 0.5, dano: 0.5, ritmo: 0.75, tiros: 0.6, dicas: true,
+    // chefeDano: dano fixo de qualquer golpe durante a luta com chefe (1 = meio coracao)
+    { nome: 'FACIL', cor: '#7fd858', vida: 0.7, chefeVida: 0.7, chefeDano: 1, dano: 0.5, ritmo: 0.75, tiros: 0.6, dicas: true,
       moedas: 15, pecas: 5,
-      desc: ['CHEFES COM METADE DA VIDA, MAIS LENTOS E COM MENOS TIROS', 'INIMIGOS COM 30% MENOS VIDA', 'VOCE LEVA METADE DO DANO (CHEFES: 1 CORACAO)', 'CADA MONSTRO DA 15 MOEDAS', 'PEDRA DE DICAS NOS PUZZLES'] },
+      desc: ['CHEFES COM 30% MENOS VIDA, MAIS LENTOS E COM MENOS TIROS', 'INIMIGOS COM 30% MENOS VIDA', 'VOCE LEVA METADE DO DANO (CHEFES: MEIO CORACAO)', 'CADA MONSTRO DA 15 MOEDAS', 'PEDRA DE DICAS NOS PUZZLES'] },
     { nome: 'MEDIO', cor: '#ffd34d', vida: 1, chefeVida: 1, dano: 1, ritmo: 1, tiros: 1,
       moedas: 8, pecas: 4,
       desc: ['O JOGO COMO FOI PENSADO', 'CHEFES TIRAM 1 CORACAO E MEIO', 'CADA MONSTRO DA 8 MOEDAS'] },
@@ -74,18 +80,22 @@
       this.trans = null;
       this.boss = null;
 
-      this.players = [];               // [anfitriao/local, convidado]
-      this.player2 = null;
-      this.mp = null;                  // multijogador: { modo, papel: 'host' | 'guest' }
-      this.remoteInput = null;
+      this.players = [];               // [anfitriao/local, convidados...]; convidado tem p.input remoto
+      // multijogador: { modo, papel: 'host' | 'guest' }; no anfitriao tambem cls, arena e convidados [{num, cls}]
+      this.mp = null;
       this.donoAtual = null;           // jogador cujo update esta rodando (dono dos tiros)
       this.hudP = null;                // de quem e o HUD desenhado agora
       this.lobby = null;
       this.quadro = null;              // convidado: ultima tela recebida
-      this.enviando = false;
+      this.quadroHud = null;           // convidado: faixa do HUD dele
+      this.quadroSemHud = false;       // convidado: a tela veio sem o HUD dele (desenha a faixa por cima)
+      this.codificando = 0;            // anfitriao: quadros ainda sendo codificados
       this.streamCanvas = G.mkCanvas(VIEW_W, VIEW_H + HUD_H);
       this.streamCtx = this.streamCanvas.getContext('2d');
       this.streamCtx.imageSmoothingEnabled = false;
+      this.hudCanvas = G.mkCanvas(VIEW_W, HUD_H);
+      this.hudCtx = this.hudCanvas.getContext('2d');
+      this.hudCtx.imageSmoothingEnabled = false;
 
       this.hasSave = !!G.store.get(SAVE_KEY);
       const dif = parseInt(G.store.get(DIF_KEY), 10);
@@ -98,7 +108,8 @@
 
     /* ---------------- mundo ---------------- */
 
-    newGame(seed, cls, p2cls) {
+    // convidados: [{num, cls}] de quem esta na sala (multijogador)
+    newGame(seed, cls, convidados) {
       this.seed = seed || ((Math.random() * 1e9) | 0);
       this.cls = G.CLASSES[cls] ? cls : (this.cls || 'guerreiro');
       const vs = this.modo() === 'vs';
@@ -107,18 +118,12 @@
       this.flags = { chests: {}, bosses: {}, cleared: {}, unlocked: {}, puzzles: {} };
       this.player = new G.Player(0, 0, this.cls);
       this.players = [this.player];
-      this.player2 = null;
-      if (p2cls) {
-        const p2 = new G.Player(0, 0, p2cls);
-        p2.num = 2;
-        p2.input = this.remoteInput;
-        this.player2 = p2;
-        this.players.push(p2);
-      }
+      for (const c of convidados || []) this.players.push(this.novoConvidado(c.num, c.cls));
       if (vs) for (const p of this.players) { p.maxhp = VS_HP; p.hp = VS_HP; }
       this.tempo = this.modo() === 'comp' ? COMP_TEMPO : 0;
       this.spawnT = COMP_SPAWN;
       this.vencedor = null;
+      this.acabou = false;
       const id = vs ? 'arena' : 'mundo1', ini = this.levels[id].start;
       this.enterLevel(id, ini.room, ini.x, ini.y);
       this.state = 'play';
@@ -193,7 +198,13 @@
     }
 
     // dano que um monstro causa no heroi, ajustado pela dificuldade (minimo 1)
-    danoRecebido(d) { const m = this.dif().dano; return m === 1 ? d : Math.max(1, Math.round(d * m)); }
+    // chefe: luta com chefe em andamento (sem informar, olha se ha chefe vivo na sala)
+    danoRecebido(d, chefe) {
+      const dif = this.dif();
+      if (chefe === undefined) chefe = !!(this.boss && !this.boss.dead);
+      if (chefe && dif.chefeDano) return dif.chefeDano;
+      return dif.dano === 1 ? d : Math.max(1, Math.round(d * dif.dano));
+    }
 
     // vida do monstro ajustada pela dificuldade (uma vez so, ao nascer)
     escala(e) {
@@ -205,29 +216,61 @@
       e.hp = e.maxhp;
     }
 
-    // VS: arena sem monstros, cada um de um lado
+    novoConvidado(num, cls) {
+      const p = new G.Player(0, 0, G.CLASSES[cls] ? cls : 'guerreiro');
+      p.num = num;
+      p.input = new G.RemoteInput();
+      return p;
+    }
+
+    jogador(num) { return this.players.find((p) => p.num === num) || null; }
+
+    // VS: arena sem monstros, todos em roda de frente para o centro (o jogador 1 a esquerda)
     montaArena() {
       this.ents = this.ents.filter((e) => !e.enemy);
-      const y = GAP_Y[0] * TILE + 3;
-      const lados = [[1, 1], [ROOM_W - 2, -1]];
-      this.players.forEach((p, k) => {
-        let [tx, passo] = lados[k];
-        while (tx > 0 && tx < ROOM_W - 1 && G.boxSolid(this.room, tx * TILE + 3, y, p.w, p.h, false)) tx += passo;
-        p.x = tx * TILE + 3; p.y = y;
-        p.dir = k === 0 ? 'right' : 'left';
+      const ativos = this.players.filter((p) => !p.espera);
+      const n = ativos.length, rx = VIEW_W / 2 - 2 * TILE, ry = VIEW_H / 2 - 2 * TILE;
+      ativos.forEach((p, k) => {
+        const a = Math.PI + (k / n) * Math.PI * 2, cos = Math.cos(a), sin = Math.sin(a);
+        const pos = this.chaoLivre(VIEW_W / 2 + cos * rx - p.w / 2, VIEW_H / 2 + sin * ry - p.h / 2, p);
+        p.x = pos.x; p.y = pos.y;
+        p.dir = Math.abs(cos) >= Math.abs(sin) ? (cos < 0 ? 'right' : 'left') : (sin < 0 ? 'down' : 'up');
       });
     }
 
-    // posiciona os outros jogadores ao lado do primeiro, em chao livre
-    juntaJogadores(lider) {
-      for (const p of this.players) {
-        if (p === lider) continue;
-        const opts = [[14, 0], [-14, 0], [0, 14], [0, -14], [0, 0]];
-        for (const [ox, oy] of opts) {
-          const x = G.clamp(lider.x + ox, 1, VIEW_W - p.w - 1), y = G.clamp(lider.y + oy, 1, VIEW_H - p.h - 1);
-          if (!G.boxSolid(this.room, x, y, p.w, p.h, false) || (ox === 0 && oy === 0)) { p.x = x; p.y = y; break; }
+    // chao livre mais perto de (x, y), procurando em aneis de meio bloco
+    chaoLivre(x, y, p) {
+      for (let r = 0; r <= 12 * TILE; r += TILE / 2) {
+        const passos = r ? Math.max(8, Math.round(r / 4)) : 1;
+        for (let k = 0; k < passos; k++) {
+          const a = (k / passos) * Math.PI * 2;
+          const px = G.clamp(Math.round(x + Math.cos(a) * r), 1, VIEW_W - p.w - 1);
+          const py = G.clamp(Math.round(y + Math.sin(a) * r), 1, VIEW_H - p.h - 1);
+          if (!G.boxSolid(this.room, px, py, p.w, p.h, false)) return { x: px, y: py };
         }
       }
+      return { x: G.clamp(x | 0, 1, VIEW_W - p.w - 1), y: G.clamp(y | 0, 1, VIEW_H - p.h - 1) };
+    }
+
+    // posiciona os outros jogadores em volta do primeiro, em chao livre
+    juntaJogadores(lider) {
+      for (const p of this.players) if (p !== lider) this.posicionaPerto(p, lider);
+    }
+
+    // um jogador ao lado do lider, sem ficar em cima de ninguem
+    posicionaPerto(p, lider) {
+      for (let r = 14; r <= 56; r += 14) {
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI * 2;
+          const x = G.clamp(lider.x + Math.round(Math.cos(a) * r), 1, VIEW_W - p.w - 1);
+          const y = G.clamp(lider.y + Math.round(Math.sin(a) * r), 1, VIEW_H - p.h - 1);
+          if (G.boxSolid(this.room, x, y, p.w, p.h, false)) continue;
+          if (this.players.some((o) => o !== p && Math.abs(o.x - x) < 10 && Math.abs(o.y - y) < 10)) continue;
+          p.x = x; p.y = y;
+          return;
+        }
+      }
+      p.x = lider.x; p.y = lider.y;
     }
 
     enterLevel(levelId, roomIdx, px, py) {
@@ -491,8 +534,7 @@
       this.morteChefe = this.room && this.room.type === 'boss' && !this.room.cleared;
       const m = this.modo();
       if (m === 'vs') {
-        this.vencedor = this.players.find((o) => o !== p) || null;
-        this.fadeTo(() => { this.state = 'fim'; Music.set('win'); });
+        this.checaFimVS(p);
         return;
       }
       if (m === 'comp') { p.respawnT = RESPAWN_COMP; this.say('JOGADOR ' + p.num + ' CAIU', 80); return; }
@@ -505,6 +547,19 @@
       this.fadeTo(() => { this.state = 'dead'; });
     }
 
+    // VS todos contra todos: quem cai esta fora; sobrou um (ou ninguem), acaba a rodada
+    checaFimVS(caiu) {
+      if (this.acabou) return;
+      const vivos = this.players.filter((o) => !o.dead);
+      if (vivos.length > 1) {
+        if (caiu) this.say('JOGADOR ' + caiu.num + ' FOI ELIMINADO', 100);
+        return;
+      }
+      this.acabou = true;
+      this.vencedor = vivos[0] || null;
+      this.fadeTo(() => { this.state = 'fim'; Music.set('win'); });
+    }
+
     // multijogador: volta ao lado de quem esta vivo (ou no inicio da area)
     reviver(p) {
       p.dead = false;
@@ -513,7 +568,7 @@
       p.knock = 0; p.atk = 0; p.roll = 0;
       p.cancelaEspeciais();
       const vivo = this.players.find((o) => o !== p && !o.dead);
-      if (vivo) this.juntaJogadores(vivo);
+      if (vivo) this.posicionaPerto(p, vivo);
       else { const lv = this.level; p.x = lv.start.x; p.y = lv.start.y; }
       this.particles.burst(p.cx, p.cy, 16, 1, 2, 20);
       this.say('JOGADOR ' + p.num + ' VOLTOU', 60);
@@ -541,11 +596,15 @@
       if (dir === 'w') start.x = VIEW_W + 2;
       if (dir === 'e') start.x = -p.w - 2;
 
-      // os outros entram lado a lado com quem puxou a transicao
+      // os outros entram logo atras de quem puxou a transicao, espalhados para os lados
       const outros = [];
+      const atras = { n: [0, -14], s: [0, 14], w: [-14, 0], e: [14, 0] }[dir];
+      let k = 0;
       for (const o of this.players) {
         if (o === p) continue;
-        const off = { n: [0, -14], s: [0, 14], w: [-14, 0], e: [14, 0] }[dir];
+        const lado = Math.ceil(k / 2) * 12 * (k % 2 ? 1 : -1);
+        k++;
+        const off = atras[0] ? [atras[0], lado] : [lado, atras[1]];
         const tg = { x: G.clamp(target.x + off[0], 3, VIEW_W - o.w - 3), y: G.clamp(target.y + off[1], 3, VIEW_H - o.h - 3) };
         outros.push({ p: o, start: { x: start.x + off[0], y: start.y + off[1] }, target: tg });
         if (o.dead) { o.x = tg.x; o.y = tg.y; }
@@ -716,7 +775,6 @@
       this.cls = G.CLASSES[d.cls] ? d.cls : 'guerreiro';
       this.player = new G.Player(d.x, d.y, this.cls);
       this.players = [this.player];
-      this.player2 = null;
       this.player.elem = d.elem || 0;
       // saves antigos: sobe a vida maxima para o novo padrao de 5 coracoes
       this.player.maxhp = Math.max(d.maxhp, this.player.def.hp);
@@ -766,7 +824,7 @@
         case 'historia': if (this.historia) this.historia.update(this.input); break;
         case 'batalha': if (this.batalha) this.batalha.update(); break;
       }
-      if (this.remoteInput) this.remoteInput.endFrame();
+      for (const p of this.players) if (p.input) p.input.endFrame();
 
       const digitando = this.state === 'lobby' && this.lobby && this.lobby.etapa === 'codigo';
       if (this.input.hit('mute') && !digitando) { const on = Sound.toggle(); this.say(on ? 'SOM LIGADO' : 'SOM DESLIGADO', 80); }
@@ -988,15 +1046,17 @@
     stepCompetitivo() {
       if (this.tempo <= 0) return;           // acabou: esperando o fade
       if (--this.tempo === 0) {
-        const [a, b] = this.players;
-        this.vencedor = !b || a.abates > b.abates ? a : b.abates > a.abates ? b : null;
+        const top = Math.max(...this.players.map((p) => p.abates));
+        const lideres = this.players.filter((p) => p.abates === top);
+        this.vencedor = lideres.length === 1 ? lideres[0] : null;
         Sound.play('secret');
         this.fadeTo(() => { this.state = 'fim'; Music.set('win'); });
         return;
       }
       if (this.room.type === 'boss' || --this.spawnT > 0) return;
       this.spawnT = COMP_SPAWN;
-      if (this.ents.filter((e) => e.enemy && !e.dead).length >= COMP_MAX) return;
+      const max = Math.min(COMP_MAX_TETO, COMP_MAX + 2 * Math.max(0, this.players.length - 2));
+      if (this.ents.filter((e) => e.enemy && !e.dead).length >= max) return;
       const tipos = COMP_TIPOS[this.levelId] || COMP_TIPOS[this.level.kind] || COMP_TIPOS.field;
       for (let k = 0; k < 24; k++) {
         const x = (1 + ((Math.random() * (ROOM_W - 2)) | 0)) * TILE + 2;
@@ -1193,6 +1253,11 @@
         Sound.play('menu');
         L.arena = G.ARENAS[L.sel].id;
         this.abrirSelecao();
+      } else if (L.etapa === 'espera') {
+        // o anfitriao comeca quando quiser; quem chegar depois entra com o jogo rolando
+        if (L.modo === 'vs' && !L.jogadores.length) { Sound.play('blocked'); return; }
+        Sound.play('secret');
+        this.comecarMulti();
       } else if (L.etapa === 'erro') {
         this.sairRede();
         this.state = 'title';
@@ -1216,6 +1281,7 @@
         L.transporte = t;
         if (L.papel === 'host') {
           L.etapa = 'espera';
+          L.jogadores = [];
           Net.conectar({ t: 'criar', modo: L.modo }, (m) => this.msgRede(m), () => this.fimRede());
         } else {
           Net.conectar({ t: 'entrar', cls, codigo: L.codigo }, (m) => this.msgRede(m), () => this.fimRede());
@@ -1223,13 +1289,63 @@
       });
     }
 
-    comecarMulti(p2cls) {
+    comecarMulti() {
       const L = this.lobby;
-      this.mp = { modo: L.modo, papel: 'host', p1: L.cls, p2: p2cls, arena: L.arena };
-      this.remoteInput = new G.RemoteInput();
+      this.mp = { modo: L.modo, papel: 'host', cls: L.cls, arena: L.arena, convidados: L.jogadores.slice() };
+      this.lobby = null;
       Net.eco = true;
-      this.newGame(null, L.cls, p2cls);
-      Net.enviar({ t: 'inicio' });
+      this.newGame(null, this.mp.cls, this.mp.convidados);
+      Net.enviar({ t: 'inicio', modo: this.mp.modo });
+    }
+
+    // anfitriao: quem esta na sala, para a tela de espera dos convidados
+    enviaLista() {
+      const L = this.lobby;
+      if (L) Net.enviar({ t: 'lista', modo: L.modo, jogadores: [{ num: 1, cls: L.cls }].concat(L.jogadores) });
+    }
+
+    // anfitriao: chegou alguem, na sala de espera ou com o jogo rolando
+    entrouConvidado(num, cls) {
+      const L = this.lobby;
+      if (L && L.etapa === 'espera') {
+        L.jogadores = L.jogadores.filter((j) => j.num !== num).concat({ num, cls });
+        Sound.play('coin');
+        this.enviaLista();
+        return;
+      }
+      const mp = this.mp;
+      if (!mp || mp.papel !== 'host') return;
+      mp.convidados = mp.convidados.filter((c) => c.num !== num).concat({ num, cls });
+      const velho = this.jogador(num);
+      if (velho) this.players.splice(this.players.indexOf(velho), 1);
+      const p = this.novoConvidado(num, cls);
+      p.sword = this.player.sword;                 // o poder dos fragmentos vale para o grupo
+      if (mp.modo === 'vs') {                      // VS: assiste e entra na proxima rodada
+        p.maxhp = VS_HP; p.hp = 0; p.dead = true; p.espera = true;
+      } else if (this.room) this.posicionaPerto(p, this.player);
+      this.players.push(p);
+      this.say('JOGADOR ' + num + ' ENTROU', 100);
+      Net.enviar({ t: 'inicio', modo: mp.modo }, num);
+      if (Music.name) Net.enviar({ t: 'mus', n: Music.name }, num);
+    }
+
+    // anfitriao: alguem saiu da sala
+    saiuConvidado(num) {
+      const L = this.lobby;
+      if (L && L.etapa === 'espera') {
+        L.jogadores = L.jogadores.filter((j) => j.num !== num);
+        this.enviaLista();
+        return;
+      }
+      const mp = this.mp;
+      if (!mp || mp.papel !== 'host') return;
+      mp.convidados = mp.convidados.filter((c) => c.num !== num);
+      const p = this.jogador(num);
+      if (!p) return;
+      this.players.splice(this.players.indexOf(p), 1);
+      if (this.tempoDono === p) this.tempoDono = null;
+      this.say('JOGADOR ' + num + ' SAIU', 120);
+      if (mp.modo === 'vs' && this.state === 'play') this.checaFimVS(null);
     }
 
     msgRede(m) {
@@ -1239,53 +1355,57 @@
           if (L) { L.etapa = 'erro'; L.msg = m.msg; }
           Net.fechar();
           break;
-        case 'entrou':          // anfitriao: o jogador 2 chegou
-          if (this.lobby && this.lobby.etapa === 'espera') this.comecarMulti(m.cls);
+        case 'entrou': this.entrouConvidado(m.id, m.cls); break;
+        case 'in': {            // anfitriao: comandos de um convidado
+          const p = this.jogador(m.id);
+          if (p && p.input) p.input.receber(m);
           break;
-        case 'in':              // anfitriao: comandos do convidado
-          if (this.remoteInput) this.remoteInput.receber(m);
+        }
+        case 'sala':            // convidado: entrou, espera o anfitriao comecar
+          if (L) {
+            L.modo = m.modo; L.num = m.id; L.jogadores = L.jogadores || [];
+            if (L.etapa === 'conectando') L.etapa = 'aguardando';
+          }
           break;
-        case 'sala': if (L) L.modo = m.modo; break;
+        case 'lista': if (L) { L.jogadores = m.jogadores || []; L.modo = m.modo || L.modo; } break;
         case 'codigo': if (L) L.codigo = m.codigo; break;   // p2p: codigo da sala do anfitriao
         case 'inicio':          // convidado: o jogo comecou
-          this.mp = { modo: L ? L.modo : null, papel: 'guest' };
-          this.quadro = null;
+          this.mp = { modo: m.modo || (L ? L.modo : null), papel: 'guest' };
+          this.quadro = null; this.quadroHud = null; this.quadroSemHud = false;
           this.state = 'remoto';
           break;
-        case 'quadro': this.recebeQuadro(m.blob); break;
+        case 'quadro': this.recebeQuadro(m); break;
         case 'som': Net.tocarSom(m.n); break;
         case 'mus': Net.tocarMusica(m.n); break;
-        case 'saiu': this.fimRede(); break;
+        case 'saiu': if (m.id) this.saiuConvidado(m.id); else this.fimRede(); break;
       }
     }
 
-    // a conexao caiu ou o outro saiu
+    // a conexao caiu (convidado: o anfitriao fechou a sala)
     fimRede() {
       const eraHost = this.mp && this.mp.papel === 'host';
       const emJogo = eraHost && this.state !== 'lobby' && this.state !== 'select' && this.state !== 'title';
+      const vs = this.modo() === 'vs';
       Net.fechar();
-      if (emJogo && this.modo() !== 'vs') {
+      if (emJogo && !vs) {
         // continua sozinho no coop e no competitivo
         this.players = [this.player];
-        this.player2 = null;
-        this.remoteInput = null;
         this.mp = null;
-        this.say('O JOGADOR 2 SAIU', 120);
+        this.say('A SALA CAIU - JOGANDO SOZINHO', 160);
         return;
       }
       if (this.state === 'title') return;
-      this.mp = null; this.remoteInput = null;
+      this.mp = null;
       this.players = this.player ? [this.player] : [];
-      this.player2 = null;
-      this.lobby = { etapa: 'erro', sel: 0, msg: eraHost ? 'O JOGADOR 2 SAIU' : 'CONEXAO ENCERRADA' };
+      this.lobby = { etapa: 'erro', sel: 0, msg: eraHost ? 'A SALA CAIU' : 'CONEXAO ENCERRADA' };
       this.state = 'lobby';
       Music.stop();
     }
 
     sairRede() {
       Net.fechar();
-      this.mp = null; this.remoteInput = null; this.lobby = null;
-      if (this.player2) { this.players = [this.player]; this.player2 = null; }
+      this.mp = null; this.lobby = null;
+      if (this.players.length > 1) this.players = [this.player];
     }
 
     // convidado: manda os comandos, mostra a tela que chega
@@ -1297,32 +1417,77 @@
       }
     }
 
-    recebeQuadro(blob) {
+    recebeQuadro(m) {
       if (!window.createImageBitmap) return;
-      createImageBitmap(blob).then((img) => {
-        if (this.quadro && this.quadro.close) this.quadro.close();
-        this.quadro = img;
+      const hud = m.tipo === Net.QUADRO.HUD;
+      createImageBitmap(m.blob).then((img) => {
+        const velho = hud ? this.quadroHud : this.quadro;
+        if (velho && velho.close) velho.close();
+        if (hud) this.quadroHud = img;
+        else { this.quadro = img; this.quadroSemHud = m.tipo === Net.QUADRO.MUNDO; }
       }).catch(() => {});
     }
 
-    // anfitriao: manda a tela com o HUD do jogador 2, a 30 quadros por segundo
+    // anfitriao, a 30 quadros por segundo. A tela e a mesma para todos: codifica uma vez so,
+    // e cada convidado recebe a faixa do proprio HUD. Quem esta com tela propria (loja aberta,
+    // caido, placar final) recebe um quadro inteiro so dele.
     transmitir() {
-      if (!this.mp || this.mp.papel !== 'host' || !this.player2 || this.enviando || (this.tick & 1) || !Net.folga()) return;
-      this.renderEm(this.streamCtx, this.player2);
-      this.enviando = true;
-      const [tipo, qualidade] = Net.formatoQuadro();
-      this.streamCanvas.toBlob((b) => {
-        this.enviando = false;
-        if (b) Net.enviarBin(b);
-      }, tipo, qualidade);
+      if (!this.mp || this.mp.papel !== 'host' || (this.tick & 1) || this.ultTx === this.tick || this.codificando > 0) return;
+      const convidados = this.players.filter((p) => p !== this.player);
+      if (!convidados.length) return;
+      this.ultTx = this.tick;
+      const prontos = convidados.filter((p) => Net.folga(p.num));
+      if (!prontos.length) return;
+      const [tipo, q] = Net.formatoQuadro(convidados.length);
+      const jogo = this.state === 'play' || this.state === 'transition';
+      const proprio = (p) => this.state === 'fim' || (jogo && !!(p.menu || p.dead));
+      const comuns = prontos.filter((p) => !proprio(p));
+      const comHud = !!TELAS_COM_HUD[this.state];
+      if (comuns.length) {
+        this.renderEm(this.streamCtx, null);
+        this.codifica(this.streamCanvas, tipo, q, comHud ? Net.QUADRO.MUNDO : Net.QUADRO.CHEIO, comuns);
+        if (comHud && this.tick % HUD_HZ === 0) {
+          for (const p of comuns) {
+            this.renderHud(p);
+            this.codifica(this.hudCanvas, 'image/png', undefined, Net.QUADRO.HUD, [p]);
+          }
+        }
+      }
+      for (const p of prontos) {
+        if (!proprio(p)) continue;
+        this.renderEm(this.streamCtx, p);
+        this.codifica(this.streamCanvas, tipo, q, Net.QUADRO.CHEIO, [p]);
+      }
+    }
+
+    // toBlob copia o canvas na hora da chamada, entao o mesmo canvas ja pode ser redesenhado
+    codifica(canvas, tipo, q, tag, alvos) {
+      const ids = alvos.map((p) => p.num);
+      this.codificando++;
+      canvas.toBlob((b) => {
+        this.codificando--;
+        if (b && this.mp && this.mp.papel === 'host') Net.enviarBin(b, tag, ids);
+      }, tipo, q);
+    }
+
+    // so a faixa do HUD de `p` (com o clarao e o fade por cima, como na tela inteira)
+    renderHud(p) {
+      const c = this.hudCtx;
+      this.hudP = p;
+      c.fillStyle = '#0b0b12';
+      c.fillRect(0, 0, VIEW_W, HUD_H);
+      this.drawHud(c);
+      this.drawBranco(c);
+      this.drawFade(c);
     }
 
     // fim de partida (competitivo e VS): ENTER joga de novo, ESC sai
     stepFim() {
       if (this.input.hit('start') || this.input.hit('attack')) {
-        Sound.play('menu');
         const mp = this.mp;
-        this.fadeTo(() => this.newGame(null, mp.p1, mp.p2));
+        if (mp.modo === 'vs' && !mp.convidados.length) { Sound.play('blocked'); return; }   // VS sozinho nao da
+        Sound.play('menu');
+        this.fadeTo(() => this.newGame(null, mp.cls, mp.convidados));
       } else if (this.input.hit('pause')) {
         this.sairRede();
         this.state = 'title';
@@ -1394,15 +1559,15 @@
       if (this.modo() === 'comp' || this.modo() === 'vs') this.drawPlacar(c);
       if (this.state === 'pause' || (this.hudP && this.hudP.menu)) this.drawPause(c);
       if (this.state === 'dead') this.drawDead(c);
-      if (this.hudP && this.hudP.dead && this.mp && this.hudP.respawnT > 0 && this.state === 'play') {
-        this.text(c, 'VOCE CAIU - VOLTA EM ' + Math.ceil(this.hudP.respawnT / 60) + 'S', VIEW_W / 2, HUD_H + 40, '#e33b4e', 'center');
+      const eu = this.hudP;
+      if (eu && eu.dead && this.mp && this.state === 'play') {
+        const aviso = eu.respawnT > 0 ? 'VOCE CAIU - VOLTA EM ' + Math.ceil(eu.respawnT / 60) + 'S'
+          : eu.espera ? 'VOCE ENTRA NA PROXIMA RODADA - ASSISTINDO'
+          : this.modo() === 'vs' ? 'VOCE FOI ELIMINADO - ASSISTINDO' : '';
+        if (aviso) this.text(c, aviso, VIEW_W / 2, HUD_H + 40, '#e33b4e', 'center');
       }
       if (!(this.state === 'pause' || (this.hudP && this.hudP.menu))) this.drawMsg(c);   // o menu nao fica coberto
-      if (this.brancoT > 0) {                    // meteoro: branco total, depois fade
-        const a = Math.min(1, this.brancoT / BRANCO_FADE);
-        c.fillStyle = 'rgba(255,255,255,' + a.toFixed(3) + ')';
-        c.fillRect(0, 0, VIEW_W, VIEW_H + HUD_H);
-      }
+      this.drawBranco(c);
       this.drawFade(c);
 
       if (this.showFps) {
@@ -1427,7 +1592,7 @@
       if (ox || oy) c.translate(ox, oy);
       for (let i = 0; i < list.length; i++) list[i].draw(c, this.SPR, this.tick);
       this.particles.draw(c);
-      if (this.player2) this.drawMarcadores(c);
+      if (this.players.length > 1) this.drawMarcadores(c);
       if (ox || oy) c.translate(-ox, -oy);
 
       if (this.level.tint) {
@@ -1454,18 +1619,18 @@
       c.save();
       c.translate(nx | 0, ny | 0);
       for (const p of this.players) if (!p.dead) p.draw(c, this.SPR, this.tick);
-      if (this.player2) this.drawMarcadores(c);
+      if (this.players.length > 1) this.drawMarcadores(c);
       c.restore();
     }
 
-    // setinha colorida em cima de cada heroi (amarela = jogador 1, azul = jogador 2)
+    // setinha colorida em cima de cada heroi (amarela = jogador 1, azul = jogador 2, ...)
     drawMarcadores(c) {
       for (const p of this.players) {
         if (p.dead) continue;
         const x = p.cx | 0, y = (p.y + p.h - 16 - 2) | 0;
         c.fillStyle = '#000';
         c.fillRect(x - 3, y - 4, 7, 3);
-        c.fillStyle = COR_P[p.num - 1];
+        c.fillStyle = corJ(p);
         c.fillRect(x - 2, y - 4, 5, 1);
         c.fillRect(x - 1, y - 3, 3, 1);
         c.fillRect(x, y - 2, 1, 1);
@@ -1504,7 +1669,7 @@
       if (this.modo() === 'vs') {
         // VS: vida em barra (20 pontos), sem coracoes
         this.barraVida(c, 6, 6, 96, 8, p);
-        this.text(c, 'VIDA ' + Math.max(0, p.hp) + '/' + p.maxhp, 6, 24, COR_P[p.num - 1]);
+        this.text(c, 'VIDA ' + Math.max(0, p.hp) + '/' + p.maxhp, 6, 24, corJ(p));
       } else {
         // coracoes
         const hearts = Math.ceil(p.maxhp / 2);
@@ -1633,6 +1798,14 @@
       lines.forEach((l, i) => this.text(c, l, VIEW_W / 2, y + 12 + i * 9, '#fff', 'center'));
     }
 
+    // meteoro: branco total, depois fade
+    drawBranco(c) {
+      if (this.brancoT <= 0) return;
+      const a = Math.min(1, this.brancoT / BRANCO_FADE);
+      c.fillStyle = 'rgba(255,255,255,' + a.toFixed(3) + ')';
+      c.fillRect(0, 0, VIEW_W, VIEW_H + HUD_H);
+    }
+
     drawFade(c) {
       if (this.fade <= 0) return;
       c.fillStyle = 'rgba(0,0,0,' + this.fade.toFixed(2) + ')';
@@ -1740,6 +1913,7 @@
       this.text(c, 'MAPA', VIEW_W / 2 + 40, 22, aba === 1 ? '#ffd34d' : '#5c667e', 'center', 12);
       c.fillStyle = '#ffd34d';
       c.fillRect(VIEW_W / 2 + (aba === 0 ? -56 : 24), 26, 32, 1);
+      if (this.mp && Net.codigo) this.text(c, 'SALA ' + Net.codigo, VIEW_W - 6, 14, '#5ce1ff', 'right');   // para chamar mais gente
       if (aba === 0) { this.drawLoja(c, p); return; }
 
       // minimapa
@@ -1861,7 +2035,7 @@
       });
 
       if (L.etapa === 'menu') {
-        lista([{ nome: 'CRIAR SALA', desc: 'VOCE HOSPEDA, O OUTRO ENTRA' },
+        lista([{ nome: 'CRIAR SALA', desc: 'VOCE HOSPEDA, OS OUTROS ENTRAM' },
           { nome: 'ENTRAR NA SALA', desc: L.codigo ? 'SALA ' + L.codigo : 'ENTRA NA SALA DE QUEM HOSPEDA' },
           { nome: 'VOLTAR' }], 76, 34);
       } else if (L.etapa === 'modo') {
@@ -1883,37 +2057,64 @@
         this.text(c, 'DIGITE O CODIGO QUE APARECE NA TELA DE QUEM CRIOU', VIEW_W / 2, 128, '#8f96a8', 'center');
         this.text(c, this.input.touch ? 'TOQUE EM ≡ PARA DIGITAR' : 'ENTER CONFIRMA   BACKSPACE APAGA   ESC VOLTA', VIEW_W / 2, 140, '#5c667e', 'center');
       } else if (L.etapa === 'espera') {
-        this.text(c, 'SALA ' + ((MODOS.find((m) => m.id === L.modo) || {}).nome || '') + ' CRIADA', VIEW_W / 2, 66, '#fff', 'center', 10);
-        if (L.arena) this.text(c, 'ARENA: ' + ((G.ARENAS.find((a) => a.id === L.arena) || {}).nome || ''), VIEW_W / 2, 78, '#8f96a8', 'center');
+        const nomeModo = (MODOS.find((m) => m.id === L.modo) || {}).nome || '';
+        const arena = L.arena ? ' - ' + ((G.ARENAS.find((a) => a.id === L.arena) || {}).nome || '') : '';
+        this.text(c, 'SALA ' + nomeModo + arena, VIEW_W / 2, 60, '#fff', 'center');
         if (L.transporte === 'ws') {
-          this.text(c, 'AGUARDANDO O JOGADOR 2' + pontos, VIEW_W / 2, 94, '#ffd34d', 'center');
-          this.text(c, 'O OUTRO PC DEVE ABRIR NO NAVEGADOR:', VIEW_W / 2, 118, '#8f96a8', 'center');
+          this.text(c, 'OS OUTROS PCS ABREM NO NAVEGADOR E ESCOLHEM ENTRAR NA SALA:', VIEW_W / 2, 76, '#8f96a8', 'center');
           const ips = Net.ips.length ? Net.ips : ['(conectando...)'];
-          ips.slice(0, 3).forEach((ip, k) => {
-            this.text(c, 'http://' + ip + (Net.porta ? ':' + Net.porta : ''), VIEW_W / 2, 132 + k * 11, '#5ce1ff', 'center');
+          ips.slice(0, 2).forEach((ip, k) => {
+            this.text(c, 'http://' + ip + (Net.porta ? ':' + Net.porta : ''), VIEW_W / 2, 90 + k * 11, '#5ce1ff', 'center');
           });
-          this.text(c, 'E ESCOLHER ENTRAR NA SALA', VIEW_W / 2, 132 + Math.min(3, ips.length) * 11 + 4, '#8f96a8', 'center');
         } else if (!L.codigo) {
-          this.text(c, 'ABRINDO A SALA' + pontos, VIEW_W / 2, 108, '#ffd34d', 'center');
+          this.text(c, 'ABRINDO A SALA' + pontos, VIEW_W / 2, 96, '#ffd34d', 'center');
         } else {
-          this.text(c, 'CODIGO DA SALA', VIEW_W / 2, 96, '#8f96a8', 'center');
-          this.text(c, L.codigo.split('').join(' '), VIEW_W / 2, 122, '#ffd34d', 'center', 22);
-          this.text(c, 'AGUARDANDO O JOGADOR 2' + pontos, VIEW_W / 2, 140, '#fff', 'center');
-          this.text(c, 'O OUTRO ABRE O JOGO, APERTA N, ENTRAR NA SALA E DIGITA O CODIGO', VIEW_W / 2, 154, '#8f96a8', 'center');
-          if (L.copiado > 0) { L.copiado--; this.text(c, 'LINK COPIADO!', VIEW_W / 2, 168, '#7fd858', 'center'); }
-          else this.text(c, 'C = COPIAR O LINK DA SALA', VIEW_W / 2, 168, '#5ce1ff', 'center');
+          this.text(c, 'CODIGO DA SALA', VIEW_W / 2, 74, '#8f96a8', 'center');
+          this.text(c, L.codigo.split('').join(' '), VIEW_W / 2, 98, '#ffd34d', 'center', 22);
+          if (L.copiado > 0) { L.copiado--; this.text(c, 'LINK COPIADO!', VIEW_W / 2, 112, '#7fd858', 'center'); }
+          else this.text(c, 'C = COPIAR O LINK DA SALA   (OS OUTROS APERTAM N E DIGITAM O CODIGO)', VIEW_W / 2, 112, '#5ce1ff', 'center');
         }
+        this.drawJogadoresSala(c, [{ num: 1, cls: L.cls }].concat(L.jogadores), 1, 128);
+        const podeComecar = L.modo !== 'vs' || L.jogadores.length > 0;
+        if (podeComecar) {
+          if ((t >> 5) & 1) this.text(c, 'ENTER = COMECAR   (QUEM CHEGAR DEPOIS ENTRA NO MEIO)', VIEW_W / 2, 196, '#ffd34d', 'center');
+        } else this.text(c, 'AGUARDANDO ALGUEM ENTRAR' + pontos, VIEW_W / 2, 196, '#ffd34d', 'center');
+      } else if (L.etapa === 'aguardando') {
+        this.text(c, 'VOCE ENTROU NA SALA ' + ((MODOS.find((m) => m.id === L.modo) || {}).nome || ''), VIEW_W / 2, 64, '#fff', 'center', 10);
+        if (L.num) this.text(c, 'VOCE E O JOGADOR ' + L.num, VIEW_W / 2, 80, corJ({ num: L.num }), 'center');
+        this.drawJogadoresSala(c, L.jogadores, L.num, 100);
+        this.text(c, 'AGUARDANDO O ANFITRIAO COMECAR' + pontos, VIEW_W / 2, 196, '#ffd34d', 'center');
       } else if (L.etapa === 'conectando') {
         this.text(c, (L.papel === 'host' ? 'CRIANDO A SALA' : 'PROCURANDO A SALA' + (L.codigo ? ' ' + L.codigo : '')) + pontos, VIEW_W / 2, 100, '#ffd34d', 'center', 10);
       } else if (L.etapa === 'erro') {
         this.text(c, L.msg, VIEW_W / 2, 100, '#e33b4e', 'center', 10);
         this.text(c, 'ENTER = VOLTAR', VIEW_W / 2, 124, '#8f96a8', 'center');
       }
-      if (L.etapa !== 'codigo') this.text(c, 'SETAS ESCOLHEM   ENTER CONFIRMA   ESC VOLTA', VIEW_W / 2, 198, '#5c667e', 'center');
+      if (L.etapa === 'espera') this.text(c, 'ESC = FECHAR A SALA', VIEW_W / 2, 212, '#5c667e', 'center');
+      else if (L.etapa === 'aguardando') this.text(c, 'ESC = SAIR DA SALA', VIEW_W / 2, 212, '#5c667e', 'center');
+      else if (L.etapa !== 'codigo') this.text(c, 'SETAS ESCOLHEM   ENTER CONFIRMA   ESC VOLTA', VIEW_W / 2, 198, '#5c667e', 'center');
+    }
+
+    // quem esta na sala: bonequinho, numero e classe, ate 8 por linha
+    drawJogadoresSala(c, lista, eu, y0) {
+      this.text(c, 'JOGADORES NA SALA: ' + lista.length, VIEW_W / 2, y0, '#8f96a8', 'center');
+      const POR = 8, W = 50, mostra = lista.slice(0, 16);
+      mostra.forEach((j, i) => {
+        const lin = (i / POR) | 0, n = Math.min(POR, mostra.length - lin * POR);
+        const x = VIEW_W / 2 + ((i % POR) - (n - 1) / 2) * W, y = y0 + 6 + lin * 26;
+        const cls = G.CLASSES[j.cls] ? j.cls : 'guerreiro';
+        c.drawImage(this.SPR.heroes[cls].walk.down[(this.tick >> 4) & 1], x - 8, y, 16, 16);
+        this.text(c, (j.num === eu ? 'VOCE' : 'P' + j.num) + ' ' + G.CLASSES[cls].nome.slice(0, 5), x, y + 23, corJ(j), 'center');
+      });
+      if (lista.length > mostra.length) this.text(c, '+' + (lista.length - mostra.length), VIEW_W / 2, y0 + 62, '#8f96a8', 'center');
     }
 
     drawRemoto(c) {
-      if (this.quadro) { c.drawImage(this.quadro, 0, 0, VIEW_W, VIEW_H + HUD_H); return; }
+      if (this.quadro) {
+        c.drawImage(this.quadro, 0, 0, VIEW_W, VIEW_H + HUD_H);
+        if (this.quadroSemHud && this.quadroHud) c.drawImage(this.quadroHud, 0, 0, VIEW_W, HUD_H);
+        return;
+      }
       this.fundoMenu(c);
       this.text(c, 'CONECTADO!', VIEW_W / 2, 96, '#5ce1ff', 'center', 12);
       this.text(c, 'ESPERANDO A IMAGEM DO ANFITRIAO...', VIEW_W / 2, 116, '#8f96a8', 'center');
@@ -1921,46 +2122,64 @@
 
     // placar do competitivo e do VS, em cima da area de jogo
     drawPlacar(c) {
-      const [a, b] = this.players;
-      if (!a || !b) return;
-      const y = HUD_H + 3, w = 116, x = (VIEW_W - w) / 2;
+      const ps = this.players, y = HUD_H + 3;
+      if (ps.length < 2) return;
       if (this.modo() === 'comp') {
-        c.fillStyle = 'rgba(8,8,16,0.78)';
-        c.fillRect(x, y, w, 12);
         const s = Math.ceil(this.tempo / 60);
-        const tempo = ((s / 60) | 0) + ':' + String(s % 60).padStart(2, '0');
-        this.text(c, 'P1 ' + a.abates, x + 4, y + 9, COR_P[0]);
-        this.text(c, tempo, VIEW_W / 2, y + 9, s <= 10 && (this.tick & 16) ? '#e33b4e' : '#fff', 'center');
-        this.text(c, b.abates + ' P2', x + w - 4, y + 9, COR_P[1], 'right');
-      } else {
-        // VS: as duas barras, uma de cada lado
-        const W = 200, X = (VIEW_W - W) / 2;
+        const tempo = { s: ((s / 60) | 0) + ':' + String(s % 60).padStart(2, '0'), cor: s <= 10 && (this.tick & 16) ? '#e33b4e' : '#fff' };
+        const itens = ps.map((p) => ({ s: 'P' + p.num + ' ' + p.abates, cor: corJ(p) }));
+        itens.splice(Math.ceil(itens.length / 2), 0, tempo);   // cronometro no meio
+        this.faixaPlacar(c, y, itens);
+        return;
+      }
+      // VS: uma barra de vida por jogador, seis por linha
+      const ativos = ps.filter((p) => !p.espera), POR = 6, W = 66;
+      for (let i = 0; i < ativos.length; i += POR) {
+        const linha = ativos.slice(i, i + POR), w = linha.length * W, x0 = (VIEW_W - w) / 2, yy = y + (i / POR) * 14;
         c.fillStyle = 'rgba(8,8,16,0.78)';
-        c.fillRect(X, y, W, 12);
-        this.text(c, 'P1', X + 3, y + 9, COR_P[0]);
-        this.barraVida(c, X + 17, y + 3, 70, 6, a);
-        this.text(c, 'VS', VIEW_W / 2, y + 9, '#e33b4e', 'center');
-        this.barraVida(c, X + W - 87, y + 3, 70, 6, b, true);
-        this.text(c, 'P2', X + W - 3, y + 9, COR_P[1], 'right');
+        c.fillRect(x0, yy, w, 12);
+        linha.forEach((p, k) => {
+          const x = x0 + k * W;
+          this.text(c, 'P' + p.num, x + 3, yy + 9, p.dead ? '#5c667e' : corJ(p));
+          this.barraVida(c, x + 19, yy + 3, W - 24, 6, p);
+        });
+      }
+    }
+
+    // textos lado a lado numa faixa escura, quebrando a cada 7
+    faixaPlacar(c, y, itens) {
+      const POR = 7, GAP = 10;
+      for (let i = 0; i < itens.length; i += POR) {
+        const linha = itens.slice(i, i + POR), larg = linha.map((it) => G.larguraTexto(it.s, 1));
+        const w = larg.reduce((a, b) => a + b, 0) + GAP * (linha.length - 1) + 8, yy = y + (i / POR) * 13;
+        let x = (VIEW_W - w) / 2;
+        c.fillStyle = 'rgba(8,8,16,0.78)';
+        c.fillRect(x, yy, w, 12);
+        x += 4;
+        linha.forEach((it, k) => { this.text(c, it.s, x, yy + 9, it.cor); x += larg[k] + GAP; });
       }
     }
 
     drawFim(c) {
-      const [a, b] = this.players, v = this.vencedor;
+      const v = this.vencedor;
       this.fundoMenu(c);
       const comp = this.mp && this.mp.modo === 'comp';
       this.text(c, comp ? 'FIM DO TEMPO!' : 'FIM DA LUTA!', VIEW_W / 2, 40, '#ffd34d', 'center', 14);
-      if (v) this.text(c, (v === this.hudP ? 'VOCE VENCEU!' : 'JOGADOR ' + v.num + ' VENCEU'), VIEW_W / 2, 66, COR_P[v.num - 1], 'center', 12);
+      if (v) this.text(c, (v === this.hudP ? 'VOCE VENCEU!' : 'JOGADOR ' + v.num + ' VENCEU'), VIEW_W / 2, 66, corJ(v), 'center', 12);
       else this.text(c, 'EMPATE!', VIEW_W / 2, 66, '#fff', 'center', 12);
-      [a, b].forEach((p, k) => {
-        if (!p) return;
-        const x = VIEW_W / 2 + (k === 0 ? -56 : 56);
+      // ranking: mais abates (competitivo) ou o vencedor e depois quem ficou com mais vida (VS)
+      const ps = this.players.filter((p) => !p.espera)
+        .sort((a, b) => (comp ? b.abates - a.abates : (b === v) - (a === v) || b.hp - a.hp)).slice(0, 12);
+      const POR = 6, W = 66, grande = ps.length <= POR, tam = grande ? 32 : 24, altura = grande ? 64 : 50;
+      ps.forEach((p, i) => {
+        const lin = (i / POR) | 0, n = Math.min(POR, ps.length - lin * POR);
+        const x = VIEW_W / 2 + ((i % POR) - (n - 1) / 2) * W, y0 = 80 + lin * altura;
         const img = this.SPR.heroes[p.cls].walk.down[(this.tick >> 4) & 1];
-        c.drawImage(img, x - 16, 84, 32, 32);
-        this.text(c, 'JOGADOR ' + p.num, x, 128, COR_P[k], 'center');
-        this.text(c, comp ? p.abates + ' ABATES' : 'VIDA ' + Math.max(0, p.hp) + '/' + p.maxhp, x, 140, '#fff', 'center');
+        c.drawImage(img, x - tam / 2, y0, tam, tam);
+        this.text(c, p === this.hudP ? 'VOCE' : 'JOGADOR ' + p.num, x, y0 + tam + 10, corJ(p), 'center');
+        this.text(c, comp ? p.abates + ' ABATES' : 'VIDA ' + Math.max(0, p.hp) + '/' + p.maxhp, x, y0 + tam + 20, '#fff', 'center');
       });
-      if ((this.tick >> 5) & 1) this.text(c, 'ANFITRIAO: ENTER = JOGAR DE NOVO   ESC = SAIR', VIEW_W / 2, 182, '#8f96a8', 'center');
+      if ((this.tick >> 5) & 1) this.text(c, 'ANFITRIAO: ENTER = JOGAR DE NOVO   ESC = SAIR', VIEW_W / 2, VIEW_H + HUD_H - 10, '#8f96a8', 'center');
     }
 
     drawDead(c) {

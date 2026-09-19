@@ -307,7 +307,7 @@
 
     ferido() {
       const p = this.p;
-      p.hp -= this.g.danoRecebido(DANO);
+      p.hp -= this.g.danoRecebido(DANO, true);
       this.inv = INV;
       this.g.shake(6);
       Sound.play('hurt');

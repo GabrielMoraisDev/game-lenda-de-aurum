@@ -258,20 +258,27 @@
   /* ---------- audio sintetizado (sem arquivos externos) ---------- */
   const Sound = {
     ctx: null, master: null, sfx: null, musicBus: null, on: true, ready: false,
+    // mixagem: efeitos sempre acima da musica (a trilha em mp3 usa Music.VOL_ARQUIVO)
+    VOL_MASTER: 0.75, VOL_SFX: 1, VOL_MUSICA: 0.1,
 
     init() {
       if (this.ctx) return;
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) { this.on = false; return; }
       this.ctx = new AC();
+      // compressor no fim da cadeia: varios efeitos juntos nao estouram
+      const comp = this.ctx.createDynamicsCompressor();
+      comp.threshold.value = -10; comp.knee.value = 6; comp.ratio.value = 4;
+      comp.attack.value = 0.003; comp.release.value = 0.15;
+      comp.connect(this.ctx.destination);
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.4;
-      this.master.connect(this.ctx.destination);
+      this.master.gain.value = this.on ? this.VOL_MASTER : 0;
+      this.master.connect(comp);
       this.sfx = this.ctx.createGain();
-      this.sfx.gain.value = 0.9;
+      this.sfx.gain.value = this.VOL_SFX;
       this.sfx.connect(this.master);
       this.musicBus = this.ctx.createGain();
-      this.musicBus.gain.value = 0.100;
+      this.musicBus.gain.value = this.VOL_MUSICA;
       this.musicBus.connect(this.master);
       this.ready = true;
     },
@@ -280,7 +287,7 @@
 
     toggle() {
       this.on = !this.on;
-      if (this.master) this.master.gain.value = this.on ? 0.6 : 0;
+      if (this.master) this.master.gain.value = this.on ? this.VOL_MASTER : 0;
       return this.on;
     },
 
@@ -484,22 +491,39 @@
       for (let i = 1; i <= 16; i++) f['boss' + i] = 'src/music/boss' + i + '.mp3';
       return f;
     })(),
-    els: {}, el: null, VOL_ARQUIVO: 0.35,
+    // se o mp3 faltar (ou vier vazio), toca a trilha sintetizada do mesmo clima
+    reserva: { historia: 'historia', world1: 'field', world2: 'pantano', world3: 'castelo', world4: 'deserto',
+               world5: 'geleira', world6: 'forja', world7: 'ceu', world8: 'vazio' },
+    player: null, arquivo: false, falhou: {}, VOL_ARQUIVO: 0.12,
 
-    audio(n) {
-      let a = this.els[n];
-      if (!a) {
-        a = new Audio(this.files[n]);
+    // um unico <audio> para todas as faixas: trocar o src descarta a anterior,
+    // entao nunca tocam duas musicas (nem a mesma duas vezes) ao mesmo tempo
+    tocador() {
+      if (!this.player) {
+        const a = new Audio();
         a.loop = true;
         a.preload = 'auto';
         a.volume = this.VOL_ARQUIVO;
-        this.els[n] = a;
+        a.addEventListener('error', () => {
+          const n = this.name;
+          if (!this.arquivo || !n || !a.src.endsWith(this.files[n])) return;
+          this.falhou[n] = true;
+          this.pausaArquivo();
+          this.step = 0;
+          this.next = Sound.ctx ? Sound.ctx.currentTime + 0.05 : 0;
+        });
+        this.player = a;
       }
-      return a;
+      return this.player;
     },
 
     pausaArquivo() {
-      if (this.el) { this.el.pause(); this.el = null; }
+      if (this.player) this.player.pause();
+      this.arquivo = false;
+    },
+
+    trilha(n) {
+      return this.tracks[n] || this.tracks[this.reserva[n]] || (/^boss/.test(n) ? this.tracks.boss : null);
     },
 
     set(n) {
@@ -508,22 +532,24 @@
       this.step = 0;
       this.next = Sound.ctx ? Sound.ctx.currentTime + 0.05 : 0;
       this.pausaArquivo();
-      if (n && this.files[n]) {
-        this.el = this.audio(n);
-        this.el.currentTime = 0;
+      if (n && this.files[n] && !this.falhou[n]) {
+        const a = this.tocador();
+        a.src = this.files[n];
+        this.arquivo = true;
       }
     },
 
     stop() { this.name = null; this.pausaArquivo(); },
 
     update() {
-      if (this.el) {
-        this.el.muted = !Sound.on;
-        if (this.el.paused && Sound.ready) this.el.play().catch(() => {});
+      if (this.arquivo) {
+        const a = this.player;
+        a.muted = !Sound.on;
+        if (a.paused && Sound.ready) a.play().catch(() => {});
         return;
       }
       if (!Sound.ready || !Sound.on || !this.name) return;
-      const t = this.tracks[this.name];
+      const t = this.trilha(this.name);
       if (!t) return;
       const now = Sound.ctx.currentTime;
       if (this.next < now) this.next = now + 0.02;

@@ -1,6 +1,6 @@
 /* servidor.js - serve o jogo e repassa as mensagens do multijogador em rede local.
    Sem dependencias: so Node.  Uso:  node servidor.js   (porta: PORT=9000 node servidor.js)
-   Uma sala por vez: o primeiro que "cria" e o anfitriao, o segundo que "entra" e o convidado. */
+   Uma sala por vez: o primeiro que "cria" e o anfitriao; todos os que "entram" sao convidados. */
 'use strict';
 
 const http = require('http');
@@ -14,7 +14,7 @@ const RAIZ = __dirname;
 const TIPOS = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.json': 'application/json',
-  '.ico': 'image/x-icon', '.svg': 'image/svg+xml'
+  '.ico': 'image/x-icon', '.svg': 'image/svg+xml', '.mp3': 'audio/mpeg'
 };
 
 function ipsDaRede() {
@@ -39,7 +39,22 @@ const server = http.createServer((req, res) => {
   if (!arq.startsWith(RAIZ + path.sep)) { res.writeHead(403); res.end(); return; }
   fs.readFile(arq, (err, dados) => {
     if (err) { res.writeHead(404); res.end('nao encontrado'); return; }
-    res.writeHead(200, { 'Content-Type': TIPOS[path.extname(arq).toLowerCase()] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
+    const cab = { 'Content-Type': TIPOS[path.extname(arq).toLowerCase()] || 'application/octet-stream',
+                  'Cache-Control': 'no-cache', 'Accept-Ranges': 'bytes' };
+    // pedidos parciais (Range): o navegador usa para buscar e repetir as musicas
+    const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+    if (m && dados.length && (m[1] || m[2])) {
+      const ini = m[1] ? Number(m[1]) : Math.max(0, dados.length - Number(m[2]));
+      const fim = m[1] && m[2] ? Math.min(Number(m[2]), dados.length - 1) : dados.length - 1;
+      if (ini > fim || ini >= dados.length) {
+        res.writeHead(416, { 'Content-Range': 'bytes */' + dados.length }); res.end(); return;
+      }
+      cab['Content-Range'] = 'bytes ' + ini + '-' + fim + '/' + dados.length;
+      res.writeHead(206, cab);
+      res.end(dados.subarray(ini, fim + 1));
+      return;
+    }
+    res.writeHead(200, cab);
     res.end(dados);
   });
 });
@@ -87,7 +102,34 @@ function leitor(sock, onMsg) {
 
 /* ---------- sala ---------- */
 
-let anfitriao = null, convidado = null, modo = null;
+// uma sala por vez: um anfitriao e quantos convidados vierem (id 2, 3, 4... = numero do jogador)
+let anfitriao = null, modo = null;
+const convidados = new Map();
+const MAX_ID = 255;                        // o id cabe em um byte do cabecalho do quadro
+const LIMITE_FILA = 1 << 20;               // convidado lento: descarta quadros em vez de acumular
+
+function primeiroLivre() {
+  let id = 2;
+  while (convidados.has(id)) id++;
+  return id;
+}
+
+// quadro do anfitriao: [tipo, n, id1..idn, imagem]; vai tal como veio para cada id da lista
+function repassaQuadro(dados) {
+  const n = dados[1];
+  const ids = n ? Array.from(dados.subarray(2, 2 + n)) : Array.from(convidados.keys());
+  for (const id of ids) {
+    const g = convidados.get(id);
+    if (g && g.writableLength < LIMITE_FILA) enviar(g, 2, dados);
+  }
+}
+
+function repassaTexto(dados) {
+  let m = null;
+  try { m = JSON.parse(dados.toString()); } catch (e) { return; }
+  if (m && m.para) { const g = convidados.get(m.para); if (g) enviar(g, 1, dados); return; }
+  for (const g of convidados.values()) enviar(g, 1, dados);
+}
 
 server.on('upgrade', (req, sock) => {
   if ((req.url || '').split('?')[0] !== '/ws') { sock.destroy(); return; }
@@ -99,7 +141,7 @@ server.on('upgrade', (req, sock) => {
   sock.setNoDelay(true);
   enviarTexto(sock, { t: 'ola', ips: ipsDaRede(), porta: PORTA });
 
-  let papel = null;
+  let papel = null, id = 0;
   leitor(sock, (op, dados) => {
     if (!papel) {                      // primeira mensagem define o papel
       let m = null;
@@ -107,30 +149,42 @@ server.on('upgrade', (req, sock) => {
       if (m && m.t === 'criar') {
         if (anfitriao) { enviarTexto(sock, { t: 'erro', msg: 'JA EXISTE UMA SALA ABERTA' }); return; }
         anfitriao = sock; papel = 'host'; modo = m.modo;
-        console.log('Sala criada (' + modo + '). Aguardando o jogador 2...');
+        console.log('Sala criada (' + modo + '). Aguardando jogadores...');
       } else if (m && m.t === 'entrar') {
         if (!anfitriao) { enviarTexto(sock, { t: 'erro', msg: 'NENHUMA SALA ABERTA' }); return; }
-        if (convidado) { enviarTexto(sock, { t: 'erro', msg: 'A SALA JA ESTA CHEIA' }); return; }
-        convidado = sock; papel = 'guest';
-        enviarTexto(anfitriao, { t: 'entrou', cls: m.cls });
-        enviarTexto(sock, { t: 'sala', modo });
-        console.log('Jogador 2 entrou (' + m.cls + ').');
+        const livre = primeiroLivre();
+        if (livre > MAX_ID) { enviarTexto(sock, { t: 'erro', msg: 'A SALA ESTA CHEIA' }); return; }
+        id = livre; papel = 'guest';
+        convidados.set(id, sock);
+        enviarTexto(sock, { t: 'sala', modo, id });
+        enviarTexto(anfitriao, { t: 'entrou', id, cls: m.cls });
+        console.log('Jogador ' + id + ' entrou (' + m.cls + ').');
       }
       return;
     }
-    const outro = papel === 'host' ? convidado : anfitriao;   // repassa tal como veio
-    enviar(outro, op, dados);
+    if (papel === 'host') {
+      if (op === 2) repassaQuadro(dados);
+      else if (op === 1) repassaTexto(dados);
+      return;
+    }
+    if (op !== 1 || !anfitriao || convidados.get(id) !== sock) return;
+    let m = null;                        // convidado: o anfitriao precisa saber de quem veio
+    try { m = JSON.parse(dados.toString()); } catch (e) { return; }
+    if (!m || typeof m !== 'object') return;
+    m.id = id;
+    enviarTexto(anfitriao, m);
   });
 
   const sair = () => {
     if (papel === 'host' && anfitriao === sock) {
       anfitriao = null; modo = null;
-      if (convidado) enviarTexto(convidado, { t: 'saiu' });
+      for (const g of convidados.values()) enviarTexto(g, { t: 'saiu' });
+      convidados.clear();
       console.log('Anfitriao saiu. Sala fechada.');
-    } else if (papel === 'guest' && convidado === sock) {
-      convidado = null;
-      if (anfitriao) enviarTexto(anfitriao, { t: 'saiu' });
-      console.log('Jogador 2 saiu.');
+    } else if (papel === 'guest' && convidados.get(id) === sock) {
+      convidados.delete(id);
+      if (anfitriao) enviarTexto(anfitriao, { t: 'saiu', id });
+      console.log('Jogador ' + id + ' saiu.');
     }
     papel = null;
   };
@@ -142,5 +196,5 @@ server.listen(PORTA, '0.0.0.0', () => {
   console.log('A Lenda de Aurum');
   console.log('  Neste PC:      http://localhost:' + PORTA + '/');
   for (const ip of ipsDaRede()) console.log('  Na rede local: http://' + ip + ':' + PORTA + '/');
-  console.log('Multijogador: um cria a sala (N no titulo), o outro abre o endereco da rede e entra.');
+  console.log('Multijogador: um cria a sala (N no titulo), os outros abrem o endereco da rede e entram.');
 });
